@@ -69,17 +69,7 @@ class clustering():
 
     def get_clustering_funcs(self, meth):
         avail_clustering_funcs = {
-                'Kmeans': (lambda : self.generate_kmeans(self.get_clustering_hyperparams('Kmeans'))),
-                'Spectral': (lambda : self.generate_spectral(self.get_clustering_hyperparams('Spectral'))),
-                'Agglomerative': (lambda : self.generate_agglomerative(self.get_clustering_hyperparams('Agglomerative'))),
-                #'LabelProp': (lambda x: self.generate_labelprop(self.get_clustering_hyperparams('LabelProp'))),
-                #'DBSCAN': (lambda x: self.generate_dbscan(self.get_clustering_hyperparams('DBSCAN'))),
-                'HDBSCAN': (lambda : self.generate_hdbscan(self.get_clustering_hyperparams('HDBSCAN'))),
-                'MeanShift': (lambda : self.generate_meanshift(self.get_clustering_hyperparams('MeanShift'))),
-                'OPTICS': (lambda: self.generate_optics(self.get_clustering_hyperparams('OPTICS'))),
-                'Birch': (lambda : self.generate_birch(self.get_clustering_hyperparams('Birch'))),
-                'BisectingKmeans': (lambda : self.generate_bisectingkmeans(self.get_clustering_hyperparams('BisectingKmeans'))),
-                'GaussianMixture': (lambda : self.generate_gaussianmixture(self.get_clustering_hyperparams('GaussianMixture'))) 
+                'Spectral': (lambda : self.generate_spectral(self.get_clustering_hyperparams('Spectral')))
         }
         
         return avail_clustering_funcs[meth]()
@@ -87,42 +77,10 @@ class clustering():
     def get_clustering_hyperparams(self, cluster_alg):
 
         clustering_params = {
-                'Kmeans': {'k_means_alg': ('lloyd', 'elkan'),
-                           'n_clusters' : [2, 3, 4, 5], #, 6, 7, 8, 9, 10, 15, 20]
-                },
                 'Spectral': {'n_clusters': [2, 3, 4, 5, 6, 7, 8, 9], #, 10, 15, 20],
                              'affinity': ('nearest_neighbors', 'rbf', 'precomputed', 'precomputed_nearest_neighbors'),
                              'assign_labels': ('kmeans', 'discretize', 'cluster_qr'),
                              'workers': self.workers
-                },
-                'Agglomerative': {'n_clusters': [2, 3, 4, 5], #, 6, 7, 8, 9, 10, 15, 20],
-                                  'linkage': ('ward', 'complete', 'average', 'single'),
-                                  'metric': ('euclidean', 'manhattan')
-                },
-                'LabelProp': {'kernel': ('rbf', 'knn'),
-                              'n_neighbors': [2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20],
-                              'gamma': [15, 18, 20, 23, 25],
-                              'workers': self.workers
-                },
-                #'DBSCAN': {'eps': np.arange(5,150 , step = 5),
-                #           'min_samples': [5, 10, 15, 20, 25, 30]   
-                #},
-                'HDBSCAN': {"min_cluster_size": [5, 10, 15], #, 20, 25, 30]
-                },
-                'MeanShift': {'workers': self.workers
-                },
-                'OPTICS': {'min_samples': [5, 10, 15], #20, 25, 30]
-                },
-                'Birch': {'n_clusters': [2, 3, 4, 5, 6], #, 7, 8, 9, 10, 15, 20],
-                          'threshold': [.03, .05]
-                },
-                'BisectingKmeans': {'k_means_alg': ('lloyd', 'elkan'),
-                                    'n_clusters' : [2, 3, 4, 5], #, 7, 8, 9, 10, 15, 20],
-                                    'bisecting_strategy': ('biggest_inertia', 'largest_cluster')
-                },
-                'GaussianMixture': {'n_components' : [2,3,4,5],
-                                         'covariance_type': ('full', 'tied', 'diag', 'spherical'),
-                                         'init_params': ('kmeans', 'k-means++', 'random', 'random_from_data')
                 }
         }
         return clustering_params[cluster_alg]
@@ -137,19 +95,7 @@ class clustering():
             os.makedirs(visualizations_path, exist_ok=True)
             os.makedirs(results_path, exist_ok=True)
 
-            clustering = self.get_clustering_funcs(alg)
-
-            #clustering = self.synthetic_data_tester()
-
-    def generate_kmeans(self, hyperparams):
-        print("Computing Kmeans")
-        outpath = self.base_path + "kmeans/"
-        for alg in hyperparams['k_means_alg']:
-            for num_clust in hyperparams['n_clusters']:
-                clustering = KMeans(n_clusters=num_clust, algorithm=alg)
-                self.cluster_evaluation('kmeans', (alg, num_clust), clustering) 
-
-        return clustering
+            #clustering = self.get_clustering_funcs(alg)
 
     def generate_spectral(self, hyperparams):
         print("Computing Spectral")
@@ -162,88 +108,6 @@ class clustering():
 
         return clustering
 
-    def generate_agglomerative(self, hyperparams):
-        print("Computing Agglomerative")
-        outpath = self.base_path + "agglomerative/"
-        for alg in hyperparams['linkage']:
-            for metric in hyperparams['metric']:
-                if alg == 'ward' and metric != 'euclidean':
-                    continue
-                
-                for num_clust in hyperparams['n_clusters']:
-                    clustering = AgglomerativeClustering(n_clusters=num_clust, metric=metric, linkage=alg)
-                    self.cluster_evaluation('agglomerative', (alg, metric, num_clust), clustering)
-
-        return clustering
-
-    def generate_labelprop(self, hyperparams):
-        print("Computing Labelprop")
-        outpath = self.base_path + "labelprop/"
-        for kernel in hyperparams['kernel']:
-            if kernel ==  'rbf':
-                for gamma in hyperparams['gamma']:
-                    clustering = LabelPropagation(kernel=kernel, gamma=gamma, n_jobs=hyperparams['workers'])
-                    self.cluster_evaluation('labelprop', (kernel, gamma), clustering)
-
-            elif kernel == 'knn':
-                for num_neighs in hyperparams['n_neighbors']:
-                    clustering = LabelPropagation(kernel=kernel, n_neighbors=num_neighs, n_jobs=hyperparams['workers'])
-                    self.cluster_evaluation('labelprop', (kernel, num_neighs), clustering)
-
-    def generate_dbscan(self, hyperparams):
-        print("Computing DBSCAN")
-        outpath = self.base_path + "dbscan/"
-        for min_samps in hyperparams['min_samples']:
-            for eps in hyperparams['eps']:
-                clustering = DBSCAN(eps=eps/100, min_samples=min_samps)
-                self.cluster_evaluation('dbscan', (eps, min_samps), clustering) 
-
-    def generate_hdbscan(self, hyperparams):
-        print("Computing HDBSCAN")
-        outpath = self.base_path + "hdbscan/"
-        for min_size in hyperparams['min_cluster_size']:
-            clustering = HDBSCAN(min_cluster_size=min_size)
-            self.cluster_evaluation('hdbscan', [min_size], clustering)         
-
-    def generate_meanshift(self, hyperparams):
-        print("Computing MeanShift")
-        outpath = self.base_path + "meanshift/"
-        clustering = MeanShift(n_jobs=hyperparams['workers'])
-        self.cluster_evaluation('meanshift', ["no params"], clustering)  
-
-    def generate_optics(self, hyperparams):
-        print("Computing OPTICS")
-        outpath = self.base_path + "optics/"
-        for min_samps in hyperparams['min_samples']:
-            clustering = OPTICS(min_samples=min_samps)
-            self.cluster_evaluation('optics', [min_samps], clustering)
-
-    def generate_birch(self, hyperparams):
-        print("Computing Birch")
-        outpath = self.base_path + "birch/"
-        for thresh in hyperparams['threshold']:
-            for n_clusts in hyperparams['n_clusters']:
-                clustering = Birch(threshold=thresh, n_clusters=n_clusts)
-                self.cluster_evaluation('birch', (n_clusts, thresh), clustering) 
-
-    def generate_bisectingkmeans(self, hyperparams):
-        print("Computing BisectingKmeans")
-        outpath = self.base_path + "bisectingkmeans/"
-        for alg in hyperparams['k_means_alg']:
-            for strat in hyperparams['bisecting_strategy']:
-                for n_clusts in hyperparams['n_clusters']:
-                    clustering = BisectingKMeans(n_clusters=n_clusts, algorithm=alg, bisecting_strategy=strat)
-                    self.cluster_evaluation('bisectingkmeans', (n_clusts, alg, strat), clustering)   
-
-    def generate_gaussianmixture(self, hyperparams):
-        print("Computing GaussianMixture")
-        outpath = self.base_path + "gaussianmixture/"
-        for cov_type in hyperparams['covariance_type']:
-            for init_par in hyperparams['init_params']:
-                for n_comp in hyperparams['n_components']:
-                    clustering = mixture.GaussianMixture(n_components=n_comp, covariance_type=cov_type, init_params=init_par)
-                    self.cluster_evaluation('gaussianmixture', (cov_type, init_par, n_comp), clustering)
-                                
     def cluster_evaluation(self, alg, hyperparameters, model):
 
         ctg_matrices_path = self.base_path + alg.lower() + '/ctg_matrices'  
@@ -254,36 +118,16 @@ class clustering():
         os.makedirs(visualizations_path, exist_ok=True)
         os.makedirs(results_path, exist_ok=True)
 
-        if alg in ('spectral', 'agglomerative', 'dbscan',
-                   'hdbscan', 'meanshift', 'optics',
-                   'birch'):
-            labels = model.fit_predict(self.train_data)
-            avg_train_acc = accuracy_score(labels, self.train_labels)
-            avg_test_acc = 'null'
-            avg_fit_time = 'null'
-            labels_pred = model.fit_predict(self.test_data)
-        elif alg == 'labelprop':
-            model.fit(self.train_data, self.train_labels)
-            labels = model.predict(self.train_data)
-            avg_train_acc = accuracy_score(labels, self.train_labels)
-            avg_test_acc = 'null'
-            avg_fit_time = 'null'
-            labels_pred = model.predict(self.test_data)
-        else:
-            cv_res = cross_validate(model, self.train_data, self.train_labels, cv = 5, return_train_score = True)
-            avg_train_acc = np.average(cv_res['train_score'])
-            avg_test_acc = np.average(cv_res['test_score'])
-            avg_fit_time = np.average(cv_res['fit_time'])
-            labels_pred = model.fit_predict(self.test_data)
-            labels = model.fit_predict(self.train_data)
-
+        labels = model.fit_predict(self.train_data)
+        label_acc = accuracy_score(labels, self.train_labels)
+            
         labels_true = self.test_labels.values.flatten()
 
         test_set_acc = accuracy_score(labels_pred, labels_true)
 
-        #silhoutte = metrics.silhouette_score(self.train_data, labels, metric='euclidean')     # Silhouette Coefficient
-        #calinski_harabasz = metrics.calinski_harabasz_score(self.train_data, labels)  # Calinski-Harabasz Index
-        #davies_bouldin = metrics.davies_bouldin_score(self.train_data, labels)    # Davies-Bouldin Index
+        silhoutte = metrics.silhouette_score(self.train_data, labels, metric='euclidean')     # Silhouette Coefficient
+        calinski_harabasz = metrics.calinski_harabasz_score(self.train_data, labels)  # Calinski-Harabasz Index
+        davies_bouldin = metrics.davies_bouldin_score(self.train_data, labels)    # Davies-Bouldin Index
 
         ri = metrics.rand_score(labels_true, labels_pred)   # RAND score
         ari = metrics.adjusted_rand_score(labels_true, labels_pred) # Adjusted RAND score
@@ -333,9 +177,9 @@ class clustering():
 
         labels_pred = pd.DataFrame(labels_pred, columns=['class'])
 
-        #data_obj = data(test_labels=labels_pred)
+        data_obj = data(test_labels=labels_pred)
 
-        #data_obj.lower_dimensional_embedding(self.test_data, 'test', filename_base, vis_file_name)
+        data_obj.lower_dimensional_embedding(self.test_data, 'test', filename_base, vis_file_name)
 
     def synthetic_data_tester(self):
 
@@ -543,83 +387,7 @@ class clustering():
                 ("BIRCH", birch),
                 ("Gaussian\nMixture", gmm),
             )
-            
-
-            '''
-            for name, algorithm in clustering_algorithms:
-                t0 = time.time()
-
-                # catch warnings related to kneighbors_graph
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore",
-                        message="the number of connected components of the "
-                        + "connectivity matrix is [0-9]{1,2}"
-                            + " > 1. Completing it to avoid stopping the tree early.",
-                            category=UserWarning,
-                    )
-                    warnings.filterwarnings(
-                            "ignore",
-                            message="Graph is not fully connected, spectral embedding"
-                            + " may not work as expected.",
-                            category=UserWarning,
-                    )
-                    #algorithm = self.get_clustering_funcs(name)
-                    algorithm.fit(X)
-
-                t1 = time.time()
-                if hasattr(algorithm, "labels_"):
-                    y_pred = algorithm.labels_.astype(int)
-                else:
-                    y_pred = algorithm.predict(X)
-                #print(X)
-
-                plt.subplot(len(datasets), len(clustering_algorithms), plot_num)
-                if i_dataset == 0:
-                    name1 = name + str(accuracy_score(y,y_pred))
-                    plt.title(name1, size=18)
-
-                colors = np.array(
-                        list(
-                            islice(
-                                cycle(
-                                    [
-                                         "#377eb8",
-                                         "#ff7f00",
-                                         "#4daf4a",
-                                         "#f781bf",
-                                         "#a65628",
-                                         "#984ea3",
-                                         "#999999",
-                                         "#e41a1c",
-                                         "#dede00",
-                                    ]
-                                    ),
-                                int(max(y_pred) + 1),
-                            )
-                        )
-                )
-                # add black color for outliers (if any)
-                colors = np.append(colors, ["#000000"])
-                plt.scatter(X[:, 0], X[:, 1], s=10, color=colors[y_pred])
-
-                #plt.title(accuracy_score(y,y_pred))
-                plt.xlim(-3, 3)
-                plt.ylim(-3, 3)
-                plt.xticks(())
-                plt.yticks(())
-                plt.text(
-                        0.99,
-                        0.01,
-                        ("%.2fs" % (t1 - t0)).lstrip("0"),
-                        transform=plt.gca().transAxes,
-                        size=15,
-                        horizontalalignment="right",
-                )
-                plot_num += 1
-
-            plt.show()
-            '''
+                        
             for name, algorithm in clustering_algorithms:
                 t0 = time.time()
 
