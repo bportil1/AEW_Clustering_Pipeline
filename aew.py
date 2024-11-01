@@ -75,30 +75,15 @@ if __name__ == '__main__':
     data_obj.lower_dimensional_embedding(data_obj.test_graph, 'test', 'Original Test Graph: 3-Dimensions', init_path)
     
     #plain_clustering = clustering(data_obj.train_data, data_obj.train_labels, data_obj.test_data, data_obj.test_labels, "full", "40_dim_no_proj", clustering_methods=clustering_meths, workers = -1)
+    aew_train = aew( data_obj.similarity_matrix, data_obj.train_data, data_obj.train_labels, 'var')
 
-    rng = np.random.default_rng()
-
-    #prec_gamma = rng.random(size=(1, 41)) 
-
-    #prec_gamma = np.random.randint(0, 200, (1, 41))
-
-    #prec_gamma = prec_gamma.astype(float)
-
-    prec_gamma = np.var(data_obj.train_data, axis=0).values
-
-    print(prec_gamma)
-
-    
-
-    aew_train = aew(data_obj.train_graph, data_obj.train_data, data_obj.train_labels, prec_gamma)
-
-    aew_train.generate_optimal_edge_weights(20)
+    aew_train.generate_optimal_edge_weights(50)
 
     #aew_train.generate_edge_weights()
 
     prec_gamma = np.var(data_obj.test_data, axis=0).values
 
-    aew_test = aew(data_obj.test_graph, data_obj.test_data, data_obj.test_labels, prec_gamma)
+    aew_test = aew(data_obj.similarity_matrix, data_obj.test_data, data_obj.test_labels, 'var')
 
     #print(np.isnan(aew_train.similarity_matrix).any())
 
@@ -114,7 +99,6 @@ if __name__ == '__main__':
 
     #print(len(aew_test.similarity_matrix))
 
-    
     clustering_with_adj_matr_prec_kmeans = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
 
     print("Kmeans Train: ", accuracy_score(clustering_with_adj_matr_prec_kmeans.fit_predict(aew_train.eigenvectors), aew_train.labels))
