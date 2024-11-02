@@ -22,27 +22,28 @@ class aew():
         self.data = data
         self.labels = labels
         self.eigenvectors = None
-        self.gamma = gamma_initializer(gamma_init)
-        self.similarity_matrix = correct_similarity_matrix_diag(similarity_matrix)
+        self.gamma = self.gamma_initializer(gamma_init)
+        self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
+        self.final_error = 0
 
     def correct_similarity_matrix_diag(self, similarity_matrix):
         identity = np.zeros((self.data.shape[0], self.data.shape[0]))
         identity_diag = np.diag(identity)
         identity_diag_res = identity_diag + 1
         np.fill_diagonal(similarity_matrix, identity_diag_res)
-
         return similarity_matrix
 
     def gamma_initializer(self, gamma_init=None):
         if gamma_init == None:
-            self.gamma = np.ones(self.data.loc[[0]].shape[1])
+            gamma = np.ones(self.data.loc[[0]].shape[1])
         elif gamma_init == 'var':
-            self.gamma = np.var(self.data, axis=0).values
+            gamma = np.var(self.data, axis=0).values
         elif gamma_init == 'random_int':
-            self.gamma = np.random.randint(0, 1000, (1, 41))
+            gamma = np.random.randint(0, 1000, (1, 41))
         elif gamma_init == 'random_float':
             rng = np.random.default_rng()
-            self.gamma = rng.random(size=(1, 41)) 
+            gamma = rng.random(size=(1, 41)) 
+        return gamma
 
     def similarity_function(self, pt1_idx, pt2_idx): # -> Computation accuracy verified
         point1 = np.asarray(self.data.loc[[pt1_idx]])[0]
@@ -101,7 +102,9 @@ class aew():
             cubed_gamma = np.where( np.abs(self.gamma) > .1e-7 ,  self.gamma**(-3), 0)
             dw_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*np.asarray(self.data.loc[[y]])[0]) for y in range(self.data.shape[0]) if idx != y])
             dD_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*xi_reconstruction) for y in range(self.data.shape[0]) if idx != y])
+            #print(gradient, " ", first_term, " ", dw_dgamma, " ", dD_dgamma)
             gradient = gradient + (first_term * (dw_dgamma - dD_dgamma))
+            gradient = np.nan_to_num(gradient, nan=0)
         return gradient
 
     def split(self, a, n):
@@ -112,7 +115,7 @@ class aew():
         gradient = []
     
         split_data = self.split(range(self.data.shape[0]), cpu_count())
-        
+
         with Pool(processes=cpu_count()) as pool:
             gradients = [pool.apply_async(self.gradient_computation, (section, )) \
                                                                  for section in split_data]
@@ -123,7 +126,8 @@ class aew():
 
         #for grad in gradients:
             #gradient = gradient + grad
-        return np.sum(gradients)
+        #print(gradients)
+        return np.sum(gradients, axis=0)
 
     def gradient_descent(self, learning_rate, num_iterations, tol):
         print("Beggining Gradient Descent")
@@ -145,13 +149,11 @@ class aew():
 
             gradient = np.where(gradient > 0, gradient * -1, gradient)
 
-            print(gradient)
-
             if curr_error < tol:
                 break
                 
             elif last_error - curr_error < -100:   #last_error < curr_error: 
-                if learning_rate > .000000001:
+                if learning_rate > .0000000000001:
                     learning_rate -= .0000001
                 else:
                     learning_rate /= (.000001)
@@ -184,9 +186,10 @@ class aew():
 
         self.gamma = min_gamma
         print("Updated Final Error: ", min_error)
+        self.final_error = min_error
         print("Updated Final Gamma: ", self.gamma)
 
-        self.generate_edge_weights
+        #self.generate_edge_weights
         self.similarity_matrix = min_sim_matrix
         print("Completed Gradient Descent")
 
@@ -197,17 +200,16 @@ class aew():
 
         self.generate_edge_weights()
     
-
-    #### still working with graph change to similarity matrix
     def edge_weight_computation(self, section):
 
         res = []
 
         for idx in section:
-            point = slice(self.data_graph.indptr[idx], self.data_graph.indptr[idx+1])
-            for vertex in self.data_graph.indices[point]:
-                res.append((idx, vertex, self.similarity_function(idx, vertex)))
-
+            #point = slice(self.data_graph.indptr[idx], self.data_graph.indptr[idx+1])
+            for vertex in range(self.data.shape[0]):
+                if vertex != idx:
+                    res.append((idx, vertex, self.similarity_function(idx, vertex)))
+        
         return res
 
     def generate_edge_weights(self):
@@ -230,15 +232,7 @@ class aew():
 
         #self.remove_disconnections()
 
-        self.eigenvectors = self.get_eigenvectors()
-
         print("Edge Weight Generation Complete")
-
-
-    def scale_matrix(self):
-        scaler = MinMaxScaler()
-
-        self.similarity_matrix = scaler.fit_transform(self.similarity_matrix)
 
     def subtract_identity(self):
         identity = np.zeros((len(self.similarity_matrix[0]), len(self.similarity_matrix[0]))) 
@@ -257,7 +251,7 @@ class aew():
         norms = np.linalg.norm(matrix, axis=1, keepdims=True)
         return matrix/norms
 
-    def get_eigenvectors(self, num_components='lowest_var', min_variance):
+    def get_eigenvectors(self, num_components, min_variance):
         pca = PCA()
 
         if num_components == 'lowest_var':
@@ -266,6 +260,8 @@ class aew():
 
             expl_var = pca.explained_variance_ratio_
     
+            print("Variance Distribution First Five: ", expl_var)
+
             cum_variance = expl_var.cumsum()
 
             num_components = ( cum_variance <= min_variance).sum() + 1
@@ -274,7 +270,6 @@ class aew():
 
         pca = pca.fit_transform(self.similarity_matrix)
 
-        pca = self.unit_normalization(pca.real)
+        self.eigenvectors = self.unit_normalization(pca.real)
 
-        return pca
 

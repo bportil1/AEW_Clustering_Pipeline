@@ -11,9 +11,9 @@ warnings.filterwarnings("ignore")
 
 
 if __name__ == '__main__':
-    ids_train_file = '/home/bryan_portillo/Desktop/network_intrusion_detection_dataset/Train_data.csv'
+    #ids_train_file = '/home/bryan_portillo/Desktop/network_intrusion_detection_dataset/Train_data.csv'
 
-    #ids_train_file = '/media/mint/NethermostHallV2/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
+    ids_train_file = '/media/mint/NethermostHallV2/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
 
     #ids_train_file = '/home/bryanportillo_lt/Documents/py_env/venv/network_intrusion_dataset/Train_data.csv'
    
@@ -23,13 +23,11 @@ if __name__ == '__main__':
 
     #synth_clust.synthetic_data_tester()
     
-    data_obj = data()
+    data_obj = data(datapath = ids_train_file)
 
-    data_obj.load_data(ids_train_file, 'train')
+    data_obj.load_data(500)
 
-    data_obj.load_labels('train', from_data=True)
-
-    data_obj.split_data(.5)
+    data_obj.load_labels()
 
     data_obj.encode_categorical('protocol_type', 'data')
 
@@ -39,66 +37,104 @@ if __name__ == '__main__':
 
     data_obj.encode_categorical('class', 'labels')
 
-    #print(data_obj.train_data.tail(10))
-    #print(data_obj.train_labels.tail(5))
-
     data_obj.scale_data('min_max')
 
-    #print(data_obj.train_data.tail(10))
+    data_obj.generate_graphs(150)
 
-    init_path = './results/orig_data_visualization/'
+    data_obj.generate_graphs(150)
 
-    os.makedirs(init_path, exist_ok=True)
+    opt_cycles = [ 2, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 75, 100]
 
-    #data_obj.lower_dimensional_embedding(data_obj.train_data, 'train', 'Original Train Data: 3-Dimensions', init_path)
+    test_diag_file = open("errorvopt.txt", "a")
 
-    #data_obj.lower_dimensional_embedding(data_obj.test_data, 'test', 'Original Test Data: 3-Dimensions', init_path)
+    for opt_steps in opt_cycles:
+        for rep in range(10):
 
-    data_obj.generate_graphs('train')
+            diag_base = str(rep) + "," + str(opt_steps) + ","
 
-    data_obj.generate_graphs('test')
+            dir_name = 'results_' + str(rep) + '_' + str(opt_steps) 
 
-    init_path = './results/plain_data/'
+            aew_obj = aew(data_obj.graph.toarray(), data_obj.data, data_obj.labels, 'var')
 
-    os.makedirs(init_path, exist_ok=True)
+            aew_obj.generate_optimal_edge_weights(opt_steps)
+
+            error_str = diag_base + str(aew_obj.final_error) + "\n"
+
+            test_diag_file.write(error_str)
+
+            os.makedirs(str('./'+dir_name+'/plain_data/twod/'), exist_ok=True)
     
-    clustering_meths = [           'Kmeans',
-                                   'Agglomerative',
-                                   'Spectral',
-                                   'Birch',
-                                   'BisectingKmeans',
-                                   'GaussianMixture'
-                                   ]
+            os.makedirs(str('./'+dir_name+'/plain_data/threed/'), exist_ok=True)
 
-    data_obj.lower_dimensional_embedding(data_obj.train_graph ,'train', 'Original Train Graph: 3-Dimensions', init_path)
+            os.makedirs(str('./'+dir_name+'/eigen_data/twod/'), exist_ok=True)
 
-    data_obj.lower_dimensional_embedding(data_obj.test_graph, 'test', 'Original Test Graph: 3-Dimensions', init_path)
+            os.makedirs(str('./'+dir_name+'/eigen_data/threed/'), exist_ok=True)
+
+            ###### Test 2d Data
+
+            aew_obj.get_eigenvectors(2, .90)
+
+            ###### Original Data Test
+
+            ##base Daataa
+
+            visualizer_obj = visualizer(data_obj.labels, 2)
+
+            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "orig_data_2d.html", str("./"+dir_name+"/plain_data/"), downsize=True)
+
+            ####clustering the whole regulaar data
+
+            clustering_obj = clustering(base_data=data_obj.data.to_numpy(), data=aew_obj.data, labels = aew_obj.labels, path_name = str("./"+dir_name+"/plain_data/twod/"),
+name_append='whole_regular_2d_data', workers=-1)
+
+            clustering_obj.generate_spectral()
+
+            visualizer_obj = visualizer(clustering_obj.pred_labels, 2)
+
+            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "plain_data_90_perc_var_2d.html", str("./"+dir_name+"/plain_data/"))
+
+            ###### Eigenvector Data Test
+
+            clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.eigenvectors, labels=aew_obj.labels, path_name = str("./"+dir_name+"/"), name_append="eigenvector_2d_data", workers=-1)
     
-    #plain_clustering = clustering(data_obj.train_data, data_obj.train_labels, data_obj.test_data, data_obj.test_labels, "full", "40_dim_no_proj", clustering_methods=clustering_meths, workers = -1)
-    aew_train = aew( data_obj.similarity_matrix, data_obj.train_data, data_obj.train_labels, 'var')
+            clustering_obj.generate_spectral()
 
-    aew_train.generate_optimal_edge_weights(50)
+            visualize_obj = visualizer(clustering_obj.pred_labels, 2)
 
-    #aew_train.generate_edge_weights()
+            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(),  "eigen_data_90_perc_var_2d.html", str("./"+dir_name+"/eigen_data/"))
 
-    prec_gamma = np.var(data_obj.test_data, axis=0).values
+            ###### Test 3d Data
 
-    aew_test = aew(data_obj.similarity_matrix, data_obj.test_data, data_obj.test_labels, 'var')
+            aew_obj.get_eigenvectors(3, .90)
 
-    #print(np.isnan(aew_train.similarity_matrix).any())
+            ###### Original Data Test
 
-    #print(len(aew_train.similarity_matrix[0]))
+            visualizer_obj = visualizer(data_obj.labels, 3)
+    
+            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "orig_data_3.html", str("./"+dir_name+"/plain_data/"))
 
-    #print(len(aew_train.similarity_matrix))
+            clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.data, labels = aew_obj.labels, path_name = str("./"+dir_name+"/plain_data/threed/"), name_append='whole_regular_3d_data', workers=-1)
 
-    aew_test.generate_edge_weights()
+            clustering_obj.generate_spectral()
 
-    #print(np.isnan(aew_test.similarity_matrix).any())
+            visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
 
-    #print(len(aew_test.similarity_matrix[0]))
+            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "plain_data_90_perc_var_3d", str("./"+dir_name+"/plain_data/"))
 
-    #print(len(aew_test.similarity_matrix))
+            ###### Eigenvector Data Test
 
+            clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.eigenvectors, labels=aew_obj.labels, path_name = str("./"+dir_name+"/"), name_append="eigenvector_3d_data", workers=-1)
+
+            clustering_obj.generate_spectral()
+
+            visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
+
+            visualizer_obj.lower_dimensional_embedding(aew_obj.data.to_numpy(),  "eigen_data_90_perc_var_3d.html", str("./"+dir_name+"/eigen_data/"))
+
+
+
+
+'''
     clustering_with_adj_matr_prec_kmeans = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
 
     print("Kmeans Train: ", accuracy_score(clustering_with_adj_matr_prec_kmeans.fit_predict(aew_train.eigenvectors), aew_train.labels))
@@ -127,7 +163,7 @@ if __name__ == '__main__':
     plain_graph_clustering = clustering(aew_train.eigenvectors, aew_train.labels, aew_test.eigenvectors, aew_test.labels, "full", "40_dim_no_proj_graph_data", clustering_methods=clustering_meths,  workers = -1)
 
     plain_graph_clustering.generate_clustering()
-
+'''
 '''
     num_components = [3, 8, 12, 15, 20, 40]
 
