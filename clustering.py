@@ -285,7 +285,7 @@ class clustering():
 
             #print(y[:5])
 
-            X_obj.generate_optimal_edge_weights(10)
+            X_obj.generate_optimal_edge_weights(50)
 
             #X_obj.generate_edge_weights()
 

@@ -145,9 +145,12 @@ class aew():
             print("Computing Error")
             curr_error = self.objective_function()
             print("Current Error: ", curr_error)
-                    
+             
+            gradient *= -1
 
-            gradient = np.where(gradient > 0, gradient * -1, gradient)
+            print("Reversed Gradient: ", gradient)
+
+            #gradient = np.where(gradient > 0, gradient * -1, gradient)
 
             if curr_error < tol:
                 break
@@ -271,5 +274,6 @@ class aew():
         pca = pca.fit_transform(self.similarity_matrix)
 
         self.eigenvectors = self.unit_normalization(pca.real)
+
 
 
