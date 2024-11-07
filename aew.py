@@ -15,7 +15,7 @@ if __name__ == '__main__':
 
     #ids_train_file = '/media/mint/NethermostHallV2/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
 
-    #ids_train_file = '/home/bryanportillo_lt/Documents/py_env/venv/network_intrusion_dataset/Train_data.csv'
+    ids_train_file = '/home/bryanportillo_lt/Documents/py_env/venv/network_intrusion_dataset/Train_data.csv'
    
     #ids_train_file = 'e:/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
     
@@ -23,6 +23,16 @@ if __name__ == '__main__':
 
     synth_clust.synthetic_data_tester()
     ''' 
+    opt_cycles = [2, 5, 10, 25, 30, 35, 40, 45,50]
+
+    for rep in range(5):
+
+        for cycle in opt_cycles:
+    
+            synthetic_data_tester(rep, cycle)
+    
+        #synthetic_data_tester(rep)
+
     data_obj = data(datapath = ids_train_file)
 
     data_obj.load_data(500)
@@ -130,11 +140,8 @@ name_append='whole_regular_2d_data', workers=-1)
             visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
 
             visualizer_obj.lower_dimensional_embedding(aew_obj.data.to_numpy(),  "eigen_data_90_perc_var_3d.html", str("./"+dir_name+"/eigen_data/"))
+        '''
     '''
-
-
-
-'''
     clustering_with_adj_matr_prec_kmeans = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
 
     print("Kmeans Train: ", accuracy_score(clustering_with_adj_matr_prec_kmeans.fit_predict(aew_train.eigenvectors), aew_train.labels))

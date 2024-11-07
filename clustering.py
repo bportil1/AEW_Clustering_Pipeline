@@ -40,7 +40,8 @@ class clustering():
     def __init__(self, base_data=None, data=None, labels=None, path_name = None, name_append = None, workers = 1):
         self.base_data=base_data
         self.data = data
-        self.labels = self.flatten_labels(labels)
+        if labels != None:
+            self.labels = self.flatten_labels(labels)
         self.pred_labels = None
         self.base_path = path_name 
         self.workers = workers
@@ -155,49 +156,49 @@ class clustering():
 
         visualizer_obj.lower_dimensional_embedding(self.base_data, whole_data_name, visualizations_path)
 
-    def synthetic_data_tester():
+def synthetic_data_tester(rep, iterations):
 
-        from sklearn import cluster, datasets, mixture
+    from sklearn import cluster, datasets, mixture
 
-        n_samples = 500
-        seed = 30
-        noisy_circles = datasets.make_circles(
-            n_samples=n_samples, factor=0.5, noise=0.05, random_state=seed
-        )
-        noisy_moons = datasets.make_moons(n_samples=n_samples, noise=0.05, random_state=seed)
-        blobs = datasets.make_blobs(n_samples=n_samples, random_state=seed)
-        rng = np.random.RandomState(seed)
-        no_structure = rng.rand(n_samples, 2), None
+    n_samples = 500
+    seed = 30
+    noisy_circles = datasets.make_circles(
+        n_samples=n_samples, factor=0.5, noise=0.05, random_state=seed
+    )
+    noisy_moons = datasets.make_moons(n_samples=n_samples, noise=0.05, random_state=seed)
+    blobs = datasets.make_blobs(n_samples=n_samples, random_state=seed)
+    rng = np.random.RandomState(seed)
+    no_structure = rng.rand(n_samples, 2), None
 
-        # Anisotropicly distributed data
-        random_state = 170
-        X, y = datasets.make_blobs(n_samples=n_samples, random_state=random_state)
-        transformation = [[0.6, -0.6], [-0.4, 0.8]]
-        X_aniso = np.dot(X, transformation)
-        aniso = (X_aniso, y)
+    # Anisotropicly distributed data
+    random_state = 170
+    X, y = datasets.make_blobs(n_samples=n_samples, random_state=random_state)
+    transformation = [[0.6, -0.6], [-0.4, 0.8]]
+    X_aniso = np.dot(X, transformation)
+    aniso = (X_aniso, y)
 
-        # blobs with varied variances
-        varied = datasets.make_blobs(
-            n_samples=n_samples, cluster_std= [ 1.5, 2.5, 0.5], random_state=random_state
-        )
+    # blobs with varied variances
+    varied = datasets.make_blobs(
+        n_samples=n_samples, cluster_std= [ 1.5, 2.5, 0.5], random_state=random_state
+    )
 
-        # ============
-        # Set up cluster parameters
-        # ============
-        plt.figure(figsize=(9 * 2 + 3, 13))
-        plt.subplots_adjust(
-            left=0.02, right=0.98, bottom=0.001, top=0.95, wspace=0.05, hspace=0.01
-        )
+    # ============
+    # Set up cluster parameters
+    # ============
+    plt.figure(figsize=(9 * 2 + 3, 13))
+    plt.subplots_adjust(
+        left=0.02, right=0.98, bottom=0.001, top=0.95, wspace=0.05, hspace=0.01
+    )
 
-        plot_num = 1
+    plot_num = 1
 
-        default_base = {
+    default_base = {
             "quantile": 0.3,
             "eps": 0.3,
             "damping": 0.9,
             "preference": -200,
             "n_neighbors": 3,
-            "n_clusters": 2,
+            "n_clusters": 3,
             "min_samples": 7,
             "xi": 0.05,
             "min_cluster_size": 0.1,
@@ -205,9 +206,9 @@ class clustering():
             "hdbscan_min_cluster_size": 15,
             "hdbscan_min_samples": 3,
             "random_state": 42,
-        }
+    }
 
-        datasets = [
+    datasets = [
         (
             noisy_circles,
             {
@@ -250,105 +251,109 @@ class clustering():
             },
         ),
         (blobs, {"min_samples": 7, "xi": 0.1, "min_cluster_size": 0.2})
-        ]
+    ]
         
-        for i_dataset, (dataset, algo_params) in enumerate(datasets):
-            # update parameters with dataset-specific values
-            params = default_base.copy()
-            params.update(algo_params)
+    for i_dataset, (dataset, algo_params) in enumerate(datasets):
+        # update parameters with dataset-specific values
+        params = default_base.copy()
+        params.update(algo_params)
 
-            X, y = dataset
+        X, y = dataset
 
-            # normalize dataset for easier parameter selection
-            X = StandardScaler().fit_transform(X)
+        # normalize dataset for easier parameter selection
+        X = StandardScaler().fit_transform(X)
             
-            #print(X)
+        #print(X)
 
-            X_df = pd.DataFrame(X)
+        X_df = pd.DataFrame(X)
 
-            #print(X)
+        #print(X)
 
-            X_data = data(train_data = X_df)
+        X_data = data(data=X_df, labels=y, datapath=".")
 
-            X_data.generate_graphs('train')
+        X_data.generate_graphs(150)
 
-            X_graph = X_data.train_graph
+        X_graph = X_data.graph
 
-            #print(y[:5])
-            y_df = pd.DataFrame(y)
+        #print(y[:5])
+        y_df = pd.DataFrame(y)
 
-            prec_gamma = np.var(X_data.train_data, axis=0).values
+        #prec_gamma = np.var(X_data.train_data, axis=0).values
 
-            X_obj = aew(X_graph, X_df, y_df, prec_gamma)
+        X_obj = aew(X_graph.toarray(), X_df, y_df, 'var')
 
-            y = y_df[y_df.columns[0]].values
+        y = y_df[y_df.columns[0]].values
 
-            #print(y[:5])
+        #print(y[:5])
 
-            X_obj.generate_optimal_edge_weights(50)
+        X_obj.generate_optimal_edge_weights(50)
 
-            #X_obj.generate_edge_weights()
+        X_obj.generate_optimal_edge_weights(iterations)
 
-            X_aew = X_obj.eigenvectors
+        #X_obj.generate_edge_weights()
+
+        X_obj.get_eigenvectors(2, .90)
+
+        X_aew = X_obj.eigenvectors
                    
-            #print(X)
+        #print(X)
     
-            bandwidth = cluster.estimate_bandwidth(X_aew, quantile=params["quantile"])
+        bandwidth = cluster.estimate_bandwidth(X_aew, quantile=params["quantile"])
 
-            # connectivity matrix for structured Ward
-            connectivity = kneighbors_graph(
+        # connectivity matrix for structured Ward
+        connectivity = kneighbors_graph(
              X_aew, n_neighbors=params["n_neighbors"], include_self=False
-            )
-            # make connectivity symmetric
-            connectivity = 0.5 * (connectivity + connectivity.T)
+        )
+        # make connectivity symmetric
+        connectivity = 0.5 * (connectivity + connectivity.T)
 
-            # ============
-            # Create cluster objects
-            # ============
-            ms = cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True)
-            two_means = cluster.MiniBatchKMeans(
+        # ============
+        # Create cluster objects
+        # ============
+        ms = cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True)
+        two_means = cluster.MiniBatchKMeans(
                 n_clusters=params["n_clusters"],
                 random_state=params["random_state"],
-            )
-            ward = cluster.AgglomerativeClustering(
+        )
+        ward = cluster.AgglomerativeClustering(
                 n_clusters=params["n_clusters"], linkage="ward", connectivity=connectivity
-            )
-            spectral = cluster.SpectralClustering(
+        )
+        spectral = cluster.SpectralClustering(
                 n_clusters=params["n_clusters"],
                 eigen_solver="arpack",
                 affinity="rbf",
                 random_state=params["random_state"],
-            )
-            dbscan = cluster.DBSCAN(eps=params["eps"])
-            hdbscan = cluster.HDBSCAN(
-            min_samples=params["hdbscan_min_samples"],
-            min_cluster_size=params["hdbscan_min_cluster_size"],
-            allow_single_cluster=params["allow_single_cluster"],
-            )
-            optics = cluster.OPTICS(
+        )
+        dbscan = cluster.DBSCAN(eps=params["eps"])
+        hdbscan = cluster.HDBSCAN(
+        min_samples=params["hdbscan_min_samples"],
+        min_cluster_size=params["hdbscan_min_cluster_size"],
+        allow_single_cluster=params["allow_single_cluster"],
+        )
+        optics = cluster.OPTICS(
                 min_samples=params["min_samples"],
                 xi=params["xi"],
                 min_cluster_size=params["min_cluster_size"],
-            )
-            affinity_propagation = cluster.AffinityPropagation(
+        )
+        affinity_propagation = cluster.AffinityPropagation(
                 damping=params["damping"],
                 preference=params["preference"],
                 random_state=params["random_state"],
-            )
-            average_linkage = cluster.AgglomerativeClustering(
+        )
+        average_linkage = cluster.AgglomerativeClustering(
                 linkage="average",
                 metric="cityblock",
                 n_clusters=params["n_clusters"],
                 connectivity=connectivity,
-            )
-            birch = cluster.Birch(n_clusters=params["n_clusters"])
-            gmm = mixture.GaussianMixture(
+        )
+        birch = cluster.Birch(n_clusters=params["n_clusters"])
+        gmm = mixture.GaussianMixture(
                 n_components=params["n_clusters"],
                 covariance_type="full",
                 random_state=params["random_state"],
-            )
+        )
 
-            clustering_algorithms = (
+        clustering_algorithms = (
                 ("MiniBatch\nKMeans", two_means),
                 ("Affinity\nPropagation", affinity_propagation),
                 ("MeanShift", ms),
@@ -360,43 +365,43 @@ class clustering():
                 ("OPTICS", optics),
                 ("BIRCH", birch),
                 ("Gaussian\nMixture", gmm),
-            )
+        )
                         
-            for name, algorithm in clustering_algorithms:
-                t0 = time.time()
+        for name, algorithm in clustering_algorithms:
+            t0 = time.time()
 
-                # catch warnings related to kneighbors_graph
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
+            # catch warnings related to kneighbors_graph
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
                         "ignore",
                         message="the number of connected components of the "
                         + "connectivity matrix is [0-9]{1,2}"
                             + " > 1. Completing it to avoid stopping the tree early.",
                             category=UserWarning,
-                    )
-                    warnings.filterwarnings(
+                )
+                warnings.filterwarnings(
                             "ignore",
                             message="Graph is not fully connected, spectral embedding"
                             + " may not work as expected.",
                             category=UserWarning,
-                    )
+                )
                     #algorithm = self.get_clustering_funcs(name)
-                    algorithm.fit(X_aew)
+                algorithm.fit(X_aew)
 
-                t1 = time.time()
-                if hasattr(algorithm, "labels_"):
-                    y_pred = algorithm.labels_.astype(int)
-                else:
-                    y_pred = algorithm.predict(X_aew)
-                #print(X)
+            t1 = time.time()
+            if hasattr(algorithm, "labels_"):
+                y_pred = algorithm.labels_.astype(int)
+            else:
+                y_pred = algorithm.predict(X_aew)
+            #print(X)
 
-                plt.subplot(len(datasets), len(clustering_algorithms), plot_num)
-                if i_dataset == 0:
-                    name1 = name + str(accuracy_score(y,y_pred))
-                    plt.title(name1, size=18)
+            plt.subplot(len(datasets), len(clustering_algorithms), plot_num)
+            if i_dataset == 0:
+                name1 = name + str(accuracy_score(y,y_pred))
+                plt.title(name1, size=18)
 
 
-                colors = np.array(
+            colors = np.array(
                         list(
                             islice(
                                 cycle(
@@ -415,24 +420,26 @@ class clustering():
                                 int(max(y_pred) + 1),
                             )
                         )
-                )
-                # add black color for outliers (if any)
-                colors = np.append(colors, ["#000000"])
-                plt.scatter(X[:, 0], X[:, 1], s=10, color=colors[y_pred])
+            )
+            # add black color for outliers (if any)
+            colors = np.append(colors, ["#000000"])
+            plt.scatter(X[:, 0], X[:, 1], s=10, color=colors[y_pred])
 
-                plt.title(accuracy_score(y,y_pred))
-                plt.xlim(-3, 3)
-                plt.ylim(-3, 3)
-                plt.xticks(())
-                plt.yticks(())
-                plt.text(
+            plt.title(accuracy_score(y,y_pred))
+            plt.xlim(-3, 3)
+            plt.ylim(-3, 3)
+            plt.xticks(())
+            plt.yticks(())
+            plt.text(
                         0.99,
                         0.01,
                         ("%.2fs" % (t1 - t0)).lstrip("0"),
                         transform=plt.gca().transAxes,
                         size=15,
                         horizontalalignment="right",
-                )
-                plt_name = "synthetic_data_" + str(plot_num) + ".png"
-                plt.savefig(plt_name) 
-                plot_num += 1
+            )
+            #plt_name = "synthetic_data_" + str(plot_num) + ".png"
+            #plt.savefig(plt_name) 
+            plot_num += 1
+    plt_name = "plot_" +str(rep) + "_" + str(cycle) + ".png"
+    plt.savefig(plt_name, bbox_inches = 'tight')
