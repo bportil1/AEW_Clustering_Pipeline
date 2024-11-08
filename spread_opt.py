@@ -45,7 +45,7 @@ class aew():
             gamma = rng.random(size=(1, 41)) 
         return gamma
 
-    def similarity_function(self, pt1_idx, pt2_idx): # -> Computation accuracy verified
+    def similarity_function(self, pt1_idx, pt2_idx, gamma): # -> Computation accuracy verified
         point1 = np.asarray(self.data.loc[[pt1_idx]])[0]
         point2 = np.asarray(self.data.loc[[pt2_idx]])[0]
 
@@ -55,7 +55,7 @@ class aew():
         deg_pt2 = np.sum(self.similarity_matrix[pt2_idx])
 
         #####  Gaussian Kernel
-        similarity_measure = np.sum(np.where(np.abs(self.gamma) > .1e-5, (((point1 - point2)**2)/(self.gamma**2)), 0))
+        similarity_measure = np.sum(np.where(np.abs(gamma) > .1e-5, (((point1 - point2)**2)/(gamma**2)), 0))
 
         ##### Exponential Kernel
         #similarity_measure = np.sum(np.where(point1 - point2  > 0, ((np.sqrt((point1 - point2)**2))*self.gamma), 0))
@@ -69,11 +69,11 @@ class aew():
         else:
             return 0
 
-    def objective_computation(self, section):
+    def objective_computation(self, section, adj_matrix, gamma):
         approx_error = 0
         for idx in section:
-            degree_idx = np.sum(self.similarity_matrix[idx])
-            xi_reconstruction = np.sum([self.similarity_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(self.similarity_matrix[idx])) if idx != y], 0)            
+            degree_idx = np.sum(adj_matrix[idx])
+            xi_reconstruction = np.sum([adj_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(adj_matrix[idx])) if idx != y], 0)            
 
             if degree_idx != 0 and not isclose(degree_idx, 0, abs_tol=1e-100):
                 xi_reconstruction /= degree_idx
@@ -83,10 +83,10 @@ class aew():
 
         return np.sum((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction)**2)
 
-    def objective_function(self):
+    def objective_function(self, adj_matr, gamma):
         split_data = self.split(range(self.data.shape[0]), cpu_count())
         with Pool(processes=cpu_count()) as pool:
-            errors = [pool.apply_async(self.objective_computation, (section, )) \
+            errors = [pool.apply_async(self.objective_computation, (section, adj_matr, gamma)) \
                                                                  for section in split_data]
 
             error = [error.get() for error in errors]
@@ -136,6 +136,55 @@ class aew():
 
         return np.sum(gradients, axis=0)
 
+    def solution_transition(self, curr_gamma, temperature):
+        new_position = curr_gamma + np.random.normal(0, temperature/1000, size = len(curr_gamma))
+        return new_position
+
+    def acceptance_probability_computation(self, curr_energy, new_energy, temperature):
+        if new_energy < curr_energy:
+            return 1.0
+        else:
+            return np.exp(-(curr_energy - new_energy) / temperature )
+
+    def simulated_annealing(self, num_iterations):
+        curr_gamma = self.gamma
+        curr_energy = self.objective_function(self.similarity_matrix, self.gamma)
+        temperature = 10000
+        min_temp = 0.001
+        cooling_rate = .995
+        #max_iterations = 1000
+
+        #curr_sim_matr = self.generate_edge_weights()
+
+        for idx in range(num_iterations):
+            new_position = self.solution_transition(curr_gamma, temperature)
+
+            curr_adj_matr = self.generate_edge_weights(new_position)
+
+            new_energy = self.objective_function(curr_adj_matr, new_position)
+
+            print("Potential New Position: ", new_position)
+            print("Potential New Postion Error: ", new_energy)
+
+            alpha = self.acceptance_probability_computation(curr_energy, new_energy, temperature)
+            print("Potential New Position Acceptance Probability: ", alpha)
+
+            if new_energy < curr_energy and np.random.rand() < alpha:
+                curr_gamma = new_position
+                curr_energy = new_energy
+
+            temperature *= cooling_rate
+            
+            print("Current Gamma: ", curr_gamma)
+            print("Current Error: ", curr_energy)
+            print("Current Temperature: ", temperature)
+            if temperature < min_temp:
+                break
+
+        self.gamma = curr_gamma
+        print("Final Error: ", curr_energy)
+        print("Final Gamma: ", self.gamma)
+            
     def adam_computation(self, num_iterations):
         print("Beggining Optimizations")
         lambda_v = .99
@@ -191,7 +240,6 @@ class aew():
 
         self.gamma = min_gamma
         self.similarity_matrix = min_sim_matrix
-
 
     def gradient_descent(self, learning_rate, num_iterations, tol):
         print("Beggining Gradient Descent")
@@ -265,11 +313,15 @@ class aew():
 
         #self.gradient_descent(.000002, num_iterations, .01)
 
-        self.adam_computation(num_iterations)
+        #self.adam_computation(num_iterations)
 
-        self.generate_edge_weights()
+        self.similarity_matrix = self.generate_edge_weights(self.gamma)
+
+        self.simulated_annealing(num_iterations)
+
+        self.similarity_matrix = self.generate_edge_weights(self.gamma)
     
-    def edge_weight_computation(self, section):
+    def edge_weight_computation(self, section, gamma):
 
         res = []
 
@@ -277,38 +329,45 @@ class aew():
             #point = slice(self.data_graph.indptr[idx], self.data_graph.indptr[idx+1])
             for vertex in range(self.data.shape[0]):
                 if vertex != idx:
-                    res.append((idx, vertex, self.similarity_function(idx, vertex)))
+                    res.append((idx, vertex, self.similarity_function(idx, vertex, gamma)))
         
         return res
 
-    def generate_edge_weights(self):
+    def generate_edge_weights(self, gamma):
         print("Generating Edge Weights")
+
+        curr_sim_matr = self.correct_similarity_matrix_diag(np.zeros_like(self.similarity_matrix))
 
         split_data = self.split(range(self.data.shape[0]), cpu_count())
 
         with Pool(processes=cpu_count()) as pool:
-            edge_weight_res = [pool.apply_async(self.edge_weight_computation, (section, )) for section in split_data]
+            edge_weight_res = [pool.apply_async(self.edge_weight_computation, (section, gamma)) for section in split_data]
 
             edge_weights = [edge_weight.get() for edge_weight in edge_weight_res]
 
         for section in edge_weights:
             for weight in section:
                 if weight[0] != weight[1]:
-                    self.similarity_matrix[weight[0]][weight[1]] = weight[2]
-                    self.similarity_matrix[weight[1]][weight[0]] = weight[2]
+                    #self.similarity_matrix[weight[0]][weight[1]] = weight[2]
+                    #self.similarity_matrix[weight[1]][weight[0]] = weight[2]
+                    curr_sim_matr[weight[0]][weight[1]] = weight[2]
+                    curr_sim_matr[weight[1]][weight[0]] = weight[2]
 
-        self.subtract_identity()
+        curr_sim_matr = self.subtract_identity(curr_sim_matr)
 
         #self.remove_disconnections()
 
         print("Edge Weight Generation Complete")
 
-    def subtract_identity(self):
-        identity = np.zeros((len(self.similarity_matrix[0]), len(self.similarity_matrix[0]))) 
+        return curr_sim_matr
+
+    def subtract_identity(self, adj_matrix):
+        identity = np.zeros((len(adj_matrix[0]), len(adj_matrix[0]))) 
         identity_diag = np.diag(identity)
         identity_diag_res = identity_diag + 2 
         np.fill_diagonal(identity, identity_diag_res) 
-        self.similarity_matrix = identity - self.similarity_matrix
+        adj_matrix = identity - adj_matrix
+        return adj_matrix
 
     def remove_disconnections(self):
         empty_rows = np.all(self.similarity_matrix == 0, axis = 1)
