@@ -286,8 +286,6 @@ def synthetic_data_tester(rep, iterations):
 
         #print(y[:5])
 
-        X_obj.generate_optimal_edge_weights(50)
-
         X_obj.generate_optimal_edge_weights(iterations)
 
         #X_obj.generate_edge_weights()
@@ -366,7 +364,7 @@ def synthetic_data_tester(rep, iterations):
                 ("BIRCH", birch),
                 ("Gaussian\nMixture", gmm),
         )
-                        
+
         for name, algorithm in clustering_algorithms:
             t0 = time.time()
 
@@ -441,5 +439,6 @@ def synthetic_data_tester(rep, iterations):
             #plt_name = "synthetic_data_" + str(plot_num) + ".png"
             #plt.savefig(plt_name) 
             plot_num += 1
-    plt_name = "plot_" +str(rep) + "_" + str(cycle) + ".png"
+    plt_name = "plot_" +str(rep)+".png"
     plt.savefig(plt_name, bbox_inches = 'tight')
+

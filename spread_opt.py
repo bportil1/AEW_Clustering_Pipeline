@@ -54,7 +54,7 @@ class aew():
         deg_pt1 = np.sum(self.similarity_matrix[pt1_idx])
         deg_pt2 = np.sum(self.similarity_matrix[pt2_idx])
              
-        similarity_measure = np.sum(np.where(np.abs(self.gamma) > .1e-5, (((point1 - point2)**2)/(self.gamma)), 0))
+        similarity_measure = np.sum(np.where(np.abs(self.gamma) > .1e-5, (((point1 - point2)**2)/(self.gamma**2)), 0))
         similarity_measure = np.exp(-similarity_measure, dtype=np.longdouble)
 
         degree_normalization_term = np.sqrt(np.abs(deg_pt1 * deg_pt2))
@@ -129,6 +129,63 @@ class aew():
         #print(gradients)
         return np.sum(gradients, axis=0)
 
+    def adam_computation(self, num_iterations):
+        print("Beggining Optimizations")
+        lambda_v = .99
+        lambda_s = .9999
+
+        epsilon = 1e10-8
+        #alpha = .001
+        alpha = 200
+        v_curr = np.zeros_like(self.gamma)
+        s_curr = np.zeros_like(self.gamma)
+        step = 0
+
+        min_error = float("inf")
+
+        for i in range(num_iterations):
+            print("Current Iteration: ", str(i+1))
+            print("Computing Gradient")
+            gradient = self.gradient_function()
+            print("Current Gradient: ", gradient)
+            print("Computing Error")
+            curr_error = self.objective_function()
+            print("Current Error: ", curr_error)
+
+            v_next = (lambda_v * v_curr) + (1-lambda_v)*gradient
+
+            s_next = (lambda_s * s_curr) + (1 - lambda_s)*(gradient**2)
+
+            step += 1
+
+            corrected_v = v_next / (1 - lambda_v**step)
+
+            corrected_s = s_next / (1 - lambda_s**step)
+
+            #print(v_next, " ", s_next, " ", corrected_v, " ", corrected_s)
+
+            print("Current Gamma: ", self.gamma)
+
+            self.gamma = self.gamma - (alpha*(corrected_v))/(epsilon + np.sqrt(corrected_s))
+
+            v_curr = v_next
+
+            s_curr = s_next
+
+            print((alpha*(corrected_v))/(epsilon + np.sqrt(corrected_s)))
+
+            print("Gamma: ", self.gamma)
+
+            if curr_error <= min_error and i != 0:
+                min_error = curr_error
+                min_gamma = self.gamma
+                min_sim_matrix = deepcopy(self.similarity_matrix)
+            self.generate_edge_weights()
+
+        self.gamma = min_gamma
+        self.similarity_matrix = min_sim_matrix
+
+
     def gradient_descent(self, learning_rate, num_iterations, tol):
         print("Beggining Gradient Descent")
         last_error = -9999999
@@ -199,7 +256,9 @@ class aew():
     def generate_optimal_edge_weights(self, num_iterations):
         print("Generating Optimal Edge Weights")
 
-        self.gradient_descent(.000002, num_iterations, .01)
+        #self.gradient_descent(.000002, num_iterations, .01)
+
+        self.adam_computation(num_iterations)
 
         self.generate_edge_weights()
     
