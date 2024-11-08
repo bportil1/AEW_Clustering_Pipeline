@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     data_obj.generate_graphs(150)
 
-    opt_cycles = [ 100]
+    opt_cycles = [300]
 
     test_diag_file = open("errorvopt.txt", "a")
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
 
             dir_name = 'results_' + str(rep) + '_' + str(opt_steps) 
 
-            aew_obj = aew(data_obj.graph.toarray(), data_obj.data, data_obj.labels)
+            aew_obj = aew(data_obj.graph.toarray(), data_obj.data, data_obj.labels, 'var')
 
             aew_obj.generate_optimal_edge_weights(opt_steps)
 

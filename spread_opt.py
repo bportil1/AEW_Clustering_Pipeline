@@ -53,8 +53,12 @@ class aew():
 
         deg_pt1 = np.sum(self.similarity_matrix[pt1_idx])
         deg_pt2 = np.sum(self.similarity_matrix[pt2_idx])
-             
+
+        #####  Gaussian Kernel
         similarity_measure = np.sum(np.where(np.abs(self.gamma) > .1e-5, (((point1 - point2)**2)/(self.gamma**2)), 0))
+
+        ##### Exponential Kernel
+        #similarity_measure = np.sum(np.where(point1 - point2  > 0, ((np.sqrt((point1 - point2)**2))*self.gamma), 0))
         similarity_measure = np.exp(-similarity_measure, dtype=np.longdouble)
 
         degree_normalization_term = np.sqrt(np.abs(deg_pt1 * deg_pt2))
@@ -102,8 +106,16 @@ class aew():
             cubed_gamma = np.where( np.abs(self.gamma) > .1e-7 ,  self.gamma**(-3), 0)
             dw_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*np.asarray(self.data.loc[[y]])[0]) for y in range(self.data.shape[0]) if idx != y])
             dD_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*xi_reconstruction) for y in range(self.data.shape[0]) if idx != y])
+
+
+            ##### Exponential kernel derivative
+            #dw_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2))*np.asarray(self.data.loc[[y]])[0]) for y in range(self.data.shape[0]) if idx != y])
+            #dD_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2))*xi_reconstruction) for y in range(self.data.shape[0]) if idx != y])
+
+
             #print(gradient, " ", first_term, " ", dw_dgamma, " ", dD_dgamma)
             gradient = gradient + (first_term * (dw_dgamma - dD_dgamma))
+            
             gradient = np.nan_to_num(gradient, nan=0)
         return gradient
 
@@ -122,11 +134,6 @@ class aew():
 
             gradients = [gradient.get() for gradient in gradients]
 
-        #gradient = np.zeros(self.data.loc[[0]].shape[1])
-
-        #for grad in gradients:
-            #gradient = gradient + grad
-        #print(gradients)
         return np.sum(gradients, axis=0)
 
     def adam_computation(self, num_iterations):
@@ -136,7 +143,7 @@ class aew():
 
         epsilon = 1e10-8
         #alpha = .001
-        alpha = 200
+        alpha = 10
         v_curr = np.zeros_like(self.gamma)
         s_curr = np.zeros_like(self.gamma)
         step = 0
@@ -176,7 +183,7 @@ class aew():
 
             print("Gamma: ", self.gamma)
 
-            if curr_error <= min_error and i != 0:
+            if curr_error <= min_error:
                 min_error = curr_error
                 min_gamma = self.gamma
                 min_sim_matrix = deepcopy(self.similarity_matrix)
