@@ -18,15 +18,21 @@ if __name__ == '__main__':
     #ids_train_file = '/home/bryanportillo_lt/Documents/py_env/venv/network_intrusion_dataset/Train_data.csv'
    
     #ids_train_file = 'e:/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
+<<<<<<< HEAD
     
     opt_cycles = [30, 35, 40, 45,50]
     '''
+     
+    opt_cycles = [25, 30, 35, 40, 45,50]
+
     for rep in range(5):
 
         for cycle in opt_cycles:
     
             synthetic_data_tester(rep, cycle)
-    '''    
+    '''        
+        #synthetic_data_tester(rep)
+    '''
 
     data_obj = data(datapath = ids_train_file)
 
