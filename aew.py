@@ -29,6 +29,7 @@ if __name__ == '__main__':
 
         for cycle in opt_cycles:
     
+
             synthetic_data_tester(rep, cycle)
     
         #synthetic_data_tester(rep)
@@ -59,6 +60,25 @@ if __name__ == '__main__':
 
     for opt_steps in opt_cycles:
         for rep in range(10):
+            data_obj = data(datapath = ids_train_file)
+
+            data_obj.load_data(500)
+
+            data_obj.load_labels()
+
+            data_obj.encode_categorical('protocol_type', 'data')
+
+            data_obj.encode_categorical('service', 'data')
+
+            data_obj.encode_categorical('flag', 'data')
+
+            data_obj.encode_categorical('class', 'labels')
+
+            data_obj.scale_data('min_max')
+
+            data_obj.generate_graphs(150)
+
+            data_obj.generate_graphs(150)
 
             diag_base = str(rep) + "," + str(opt_steps) + ","
 
