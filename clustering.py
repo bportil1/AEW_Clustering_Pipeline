@@ -40,8 +40,13 @@ class clustering():
     def __init__(self, base_data=None, data=None, labels=None, path_name = None, name_append = None, workers = 1):
         self.base_data=base_data
         self.data = data
+<<<<<<< HEAD
         #if labels.empty:
         self.labels = self.flatten_labels(labels)
+=======
+        if labels != None:
+            self.labels = self.flatten_labels(labels)
+>>>>>>> 2f2d8dd (	modified:   aew.py)
         self.pred_labels = None
         self.base_path = path_name 
         self.workers = workers
@@ -367,6 +372,9 @@ def synthetic_data_tester(rep, iterations):
 
         for name, algorithm in clustering_algorithms:
             t0 = time.time()
+                        
+        for name, algorithm in clustering_algorithms:
+            t0 = time.time()
 
             # catch warnings related to kneighbors_graph
             with warnings.catch_warnings():
@@ -439,6 +447,10 @@ def synthetic_data_tester(rep, iterations):
             #plt_name = "synthetic_data_" + str(plot_num) + ".png"
             #plt.savefig(plt_name) 
             plot_num += 1
+
     plt_name = "plot_" +str(rep)+".png"
+    plt.savefig(plt_name, bbox_inches = 'tight')
+
+    plt_name = "plot_" +str(rep) + "_" + str(cycle) + ".png"
     plt.savefig(plt_name, bbox_inches = 'tight')
 
