@@ -284,6 +284,8 @@ class SwarmBasedAnnealingOptimizer:
 
             eta = np.random.normal(0, 1, size = len(self.gamma))
 
+            #eta = np.random.normal(0, , size = len(self.gamma))
+
             for i in range(self.num_particles):
 
                 curr_adj_matr = self.generate_edge_weights(self.positions[i])

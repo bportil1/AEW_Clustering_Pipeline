@@ -25,6 +25,8 @@ if __name__ == '__main__':
     '''
     opt_cycles = [2, 5, 10, 25, 30, 35, 40, 45,50]
 
+    opt_cycles = [5]
+    
     for rep in range(5):
 
         for cycle in opt_cycles:
@@ -162,16 +164,16 @@ name_append='whole_regular_2d_data', workers=-1)
             visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
 
             visualizer_obj.lower_dimensional_embedding(aew_obj.data.to_numpy(),  "eigen_data_90_perc_var_3d.html", str("./"+dir_name+"/eigen_data/"))
-<<<<<<< HEAD
     
+            '''
     '''
-=======
-'''
-
-
 
 '''
->>>>>>> 2f2d8dd (	modified:   aew.py)
+
+
+
+'''
+
     clustering_with_adj_matr_prec_kmeans = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
 
     print("Kmeans Train: ", accuracy_score(clustering_with_adj_matr_prec_kmeans.fit_predict(aew_train.eigenvectors), aew_train.labels))
