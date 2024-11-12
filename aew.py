@@ -11,25 +11,24 @@ warnings.filterwarnings("ignore")
 
 
 if __name__ == '__main__':
-    ids_train_file = '/home/bryan_portillo/Desktop/network_intrusion_detection_dataset/Train_data.csv'
+    #ids_train_file = '/home/bryan_portillo/Desktop/network_intrusion_detection_dataset/Train_data.csv'
 
-    #ids_train_file = '/media/mint/NethermostHallV2/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
+    ids_train_file = '/media/mint/NethermostHallV2/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
 
     #ids_train_file = '/home/bryanportillo_lt/Documents/py_env/venv/network_intrusion_dataset/Train_data.csv'
    
     #ids_train_file = 'e:/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
     
     opt_cycles = [30, 35, 40, 45,50]
-    '''
-    opt_cycles = [25, 30, 35, 40, 45,50]
 
+    opt_cycles = [10]
+    '''
     for rep in range(5):
 
         for cycle in opt_cycles:
     
             synthetic_data_tester(rep, cycle)
-    '''        
-
+    '''     
     data_obj = data(datapath = ids_train_file)
 
     data_obj.load_data(500)
@@ -55,7 +54,7 @@ if __name__ == '__main__':
     test_diag_file = open("errorvopt.txt", "a")
 
     for opt_steps in opt_cycles:
-        for rep in range(10):
+        for rep in range(1):
             data_obj = data(datapath = ids_train_file)
 
             data_obj.load_data(500)
@@ -156,7 +155,7 @@ name_append='whole_regular_2d_data', workers=-1)
             visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
 
             visualizer_obj.lower_dimensional_embedding(aew_obj.data.to_numpy(),  "eigen_data_90_perc_var_3d.html", str("./"+dir_name+"/eigen_data/"))
-
+    
     '''
     clustering_with_adj_matr_prec_kmeans = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
 
@@ -186,8 +185,8 @@ name_append='whole_regular_2d_data', workers=-1)
     plain_graph_clustering = clustering(aew_train.eigenvectors, aew_train.labels, aew_test.eigenvectors, aew_test.labels, "full", "40_dim_no_proj_graph_data", clustering_methods=clustering_meths,  workers = -1)
 
     plain_graph_clustering.generate_clustering()
-'''
-'''
+    '''
+    '''
     num_components = [3, 8, 12, 15, 20, 40]
 
     for num_comp in num_components:

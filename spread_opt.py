@@ -13,6 +13,8 @@ from sklearn.preprocessing import MinMaxScaler
 
 import warnings
 
+from optimizers import *
+
 warnings.filterwarnings("ignore")
 
 class aew():
@@ -92,20 +94,20 @@ class aew():
             error = [error.get() for error in errors]
         return np.sum(error)
 
-    def gradient_computation(self, section):
-        gradient = np.zeros(len(self.gamma))
+    def gradient_computation(self, section, similarity_matrix, gamma):
+        gradient = np.zeros(len(gamma))
         for idx in section:
-            dii = np.sum(self.similarity_matrix[idx])
-            xi_reconstruction = np.sum([self.similarity_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(self.similarity_matrix[idx])) if idx != y], 0)
+            dii = np.sum(similarity_matrix[idx])
+            xi_reconstruction = np.sum([similarity_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(similarity_matrix[idx])) if idx != y], 0)
             if dii != 0 and not isclose(dii, 0, abs_tol=1e-100):
                 xi_reconstruction = np.divide(xi_reconstruction, dii, casting='unsafe', dtype=np.longdouble)
                 first_term = np.divide((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction), dii, casting='unsafe', dtype=np.longdouble)
             else:
                 first_term  = np.zeros_like(xi_reconstruction)
                 xi_reconstruction  = np.zeros_like(xi_reconstruction)
-            cubed_gamma = np.where( np.abs(self.gamma) > .1e-7 ,  self.gamma**(-3), 0)
-            dw_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*np.asarray(self.data.loc[[y]])[0]) for y in range(self.data.shape[0]) if idx != y])
-            dD_dgamma = np.sum([(2*self.similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*xi_reconstruction) for y in range(self.data.shape[0]) if idx != y])
+            cubed_gamma = np.where( np.abs(gamma) > .1e-7 ,  gamma**(-3), 0)
+            dw_dgamma = np.sum([(2*similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*np.asarray(self.data.loc[[y]])[0]) for y in range(self.data.shape[0]) if idx != y])
+            dD_dgamma = np.sum([(2*similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*xi_reconstruction) for y in range(self.data.shape[0]) if idx != y])
 
 
             ##### Exponential kernel derivative
@@ -123,190 +125,18 @@ class aew():
         k, m = divmod(len(a), n)
         return [a[i*k+min(i,m):(i+1)*k+min(i+1,m)] for i in range(n)]
 
-    def gradient_function(self):
+    def gradient_function(self, similarity_matrix, gamma):
         gradient = []
     
         split_data = self.split(range(self.data.shape[0]), cpu_count())
 
         with Pool(processes=cpu_count()) as pool:
-            gradients = [pool.apply_async(self.gradient_computation, (section, )) \
+            gradients = [pool.apply_async(self.gradient_computation, (section, similarity_matrix, gamma)) \
                                                                  for section in split_data]
 
             gradients = [gradient.get() for gradient in gradients]
 
         return np.sum(gradients, axis=0)
-
-    def solution_transition(self, curr_gamma, temperature):
-        new_position = curr_gamma + np.random.normal(0, temperature/1000, size = len(curr_gamma))
-        return new_position
-
-    def acceptance_probability_computation(self, curr_energy, new_energy, temperature):
-        if new_energy < curr_energy:
-            return 1.0
-        else:
-            return np.exp(-(curr_energy - new_energy) / temperature )
-
-    def simulated_annealing(self, num_iterations):
-        curr_gamma = self.gamma
-        curr_energy = self.objective_function(self.similarity_matrix, self.gamma)
-        temperature = 10000
-        min_temp = 0.001
-        cooling_rate = .995
-        #max_iterations = 1000
-
-        #curr_sim_matr = self.generate_edge_weights()
-
-        for idx in range(num_iterations):
-            new_position = self.solution_transition(curr_gamma, temperature)
-
-            curr_adj_matr = self.generate_edge_weights(new_position)
-
-            new_energy = self.objective_function(curr_adj_matr, new_position)
-
-            print("Potential New Position: ", new_position)
-            print("Potential New Postion Error: ", new_energy)
-
-            alpha = self.acceptance_probability_computation(curr_energy, new_energy, temperature)
-            print("Potential New Position Acceptance Probability: ", alpha)
-
-            if new_energy < curr_energy and np.random.rand() < alpha:
-                curr_gamma = new_position
-                curr_energy = new_energy
-
-            temperature *= cooling_rate
-            
-            print("Current Gamma: ", curr_gamma)
-            print("Current Error: ", curr_energy)
-            print("Current Temperature: ", temperature)
-            if temperature < min_temp:
-                break
-
-        self.gamma = curr_gamma
-        print("Final Error: ", curr_energy)
-        print("Final Gamma: ", self.gamma)
-            
-    def adam_computation(self, num_iterations):
-        print("Beggining Optimizations")
-        lambda_v = .99
-        lambda_s = .9999
-
-        epsilon = 1e10-8
-        #alpha = .001
-        alpha = 10
-        v_curr = np.zeros_like(self.gamma)
-        s_curr = np.zeros_like(self.gamma)
-        step = 0
-
-        min_error = float("inf")
-
-        for i in range(num_iterations):
-            print("Current Iteration: ", str(i+1))
-            print("Computing Gradient")
-            gradient = self.gradient_function()
-            print("Current Gradient: ", gradient)
-            print("Computing Error")
-            curr_error = self.objective_function()
-            print("Current Error: ", curr_error)
-
-            v_next = (lambda_v * v_curr) + (1-lambda_v)*gradient
-
-            s_next = (lambda_s * s_curr) + (1 - lambda_s)*(gradient**2)
-
-            step += 1
-
-            corrected_v = v_next / (1 - lambda_v**step)
-
-            corrected_s = s_next / (1 - lambda_s**step)
-
-            #print(v_next, " ", s_next, " ", corrected_v, " ", corrected_s)
-
-            print("Current Gamma: ", self.gamma)
-
-            self.gamma = self.gamma - (alpha*(corrected_v))/(epsilon + np.sqrt(corrected_s))
-
-            v_curr = v_next
-
-            s_curr = s_next
-
-            print((alpha*(corrected_v))/(epsilon + np.sqrt(corrected_s)))
-
-            print("Gamma: ", self.gamma)
-
-            if curr_error <= min_error:
-                min_error = curr_error
-                min_gamma = self.gamma
-                min_sim_matrix = deepcopy(self.similarity_matrix)
-            self.generate_edge_weights()
-
-        self.gamma = min_gamma
-        self.similarity_matrix = min_sim_matrix
-
-    def gradient_descent(self, learning_rate, num_iterations, tol):
-        print("Beggining Gradient Descent")
-        last_error = -9999999
-        min_error = float('inf')
-        min_gamma = []
-        min_sim_matrix = []
-        last_change = 0
-        # Perform the gradient descent iterations
-        for i in range(num_iterations):
-            print("Current Iteration: ", str(i+1))
-            print("Computing Gradient")
-            gradient = self.gradient_function()
-            print("Current Gradient: ", gradient)
-            print("Computing Error")
-            curr_error = self.objective_function()
-            print("Current Error: ", curr_error)
-             
-            gradient *= -1
-
-            print("Reversed Gradient: ", gradient)
-
-            #gradient = np.where(gradient > 0, gradient * -1, gradient)
-
-            if curr_error < tol:
-                break
-                
-            elif last_error - curr_error < -100:   #last_error < curr_error: 
-                if learning_rate > .0000000000001:
-                    learning_rate -= .0000001
-                else:
-                    learning_rate /= (.000001)
-
-            elif last_error - curr_error < 100:
-                learning_rate += .000001
-                #learning_rate *= (1.00002)
-           
-            elif last_error - curr_error > 100 and i < 5:
-                learning_rate *= (1.02)
-
-            elif last_error > 500:
-                learning_rate *= (1.03)
-
-            last_error = curr_error
-            
-            last_change += 1 
-
-            if curr_error <= min_error and i != 0:
-                min_error = curr_error
-                min_gamma = self.gamma
-                min_sim_matrix = deepcopy(self.similarity_matrix) 
-                last_change = 0
-
-            print("Gamma: ", self.gamma)
-            self.gamma = (self.gamma + (gradient * learning_rate))
-            print("Updated Gamma: ", self.gamma)
-            self.generate_edge_weights()
-            print("Updated Learning Rate: ", learning_rate)
-
-        self.gamma = min_gamma
-        print("Updated Final Error: ", min_error)
-        self.final_error = min_error
-        print("Updated Final Gamma: ", self.gamma)
-
-        #self.generate_edge_weights
-        self.similarity_matrix = min_sim_matrix
-        print("Completed Gradient Descent")
 
     def generate_optimal_edge_weights(self, num_iterations):
         print("Generating Optimal Edge Weights")
@@ -317,7 +147,15 @@ class aew():
 
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
 
-        self.simulated_annealing(num_iterations)
+        #self.simulated_annealing(num_iterations)
+
+        #pso = ParticleSwarmOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.generate_edge_weights, 30, len(self.gamma), 10)
+
+        #self.gamma = pso.optimize()
+
+        sba = SwarmBasedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.gradient_function, self.generate_edge_weights, 30, len(self.gamma), 10)
+
+        self.gamma = sba.optimize()
 
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
     
@@ -399,6 +237,4 @@ class aew():
         pca = pca.fit_transform(self.similarity_matrix)
 
         self.eigenvectors = self.unit_normalization(pca.real)
-
-
 
