@@ -15,6 +15,8 @@ import warnings
 
 from optimizers import *
 
+import cupy as cp
+
 warnings.filterwarnings("ignore")
 
 class aew():
@@ -74,8 +76,11 @@ class aew():
     def objective_computation(self, section, adj_matrix, gamma):
         approx_error = 0
         for idx in section:
-            degree_idx = np.sum(adj_matrix[idx])
-            xi_reconstruction = np.sum([adj_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(adj_matrix[idx])) if idx != y], 0)            
+            #degree_idx = np.sum(adj_matrix[idx])
+            #xi_reconstruction = np.sum([adj_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(adj_matrix[idx])) if idx != y], 0)            
+
+
+
 
             if degree_idx != 0 and not isclose(degree_idx, 0, abs_tol=1e-100):
                 xi_reconstruction /= degree_idx
@@ -87,12 +92,15 @@ class aew():
 
     def objective_function(self, adj_matr, gamma):
         split_data = self.split(range(self.data.shape[0]), cpu_count())
-        with Pool(processes=cpu_count()) as pool:
+        #with Pool(processes=cpu_count()) as pool:
+        with cp.cuda.Device(0):
             errors = [pool.apply_async(self.objective_computation, (section, adj_matr, gamma)) \
                                                                  for section in split_data]
 
-            error = [error.get() for error in errors]
-        return np.sum(error)
+            #error = [error.get() for error in errors]
+            error = cp.sum(errors).get()
+        #return np.sum(error)
+        return error
 
     def gradient_computation(self, section, similarity_matrix, gamma):
         gradient = np.zeros(len(gamma))
