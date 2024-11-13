@@ -164,7 +164,6 @@ class aew():
         res = []
 
         for idx in section:
-            #point = slice(self.data_graph.indptr[idx], self.data_graph.indptr[idx+1])
             for vertex in range(self.data.shape[0]):
                 if vertex != idx:
                     res.append((idx, vertex, self.similarity_function(idx, vertex, gamma)))

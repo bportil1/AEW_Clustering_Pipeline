@@ -40,13 +40,10 @@ class clustering():
     def __init__(self, base_data=None, data=None, labels=None, path_name = None, name_append = None, workers = 1):
         self.base_data=base_data
         self.data = data
-<<<<<<< HEAD
         #if labels.empty:
         self.labels = self.flatten_labels(labels)
-=======
-        if labels != None:
-            self.labels = self.flatten_labels(labels)
->>>>>>> 2f2d8dd (	modified:   aew.py)
+        #if labels != None:
+        #    self.labels = self.flatten_labels(labels)
         self.pred_labels = None
         self.base_path = path_name 
         self.workers = workers
