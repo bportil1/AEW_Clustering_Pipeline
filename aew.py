@@ -1,240 +1,219 @@
-from spread_opt import *
-from preprocessing_utils import *
-from clustering import *
-from aew_surface_plotter import *
-
-
-from sklearn.metrics import accuracy_score
-
-
+import numpy as np
+import pandas as pd
+from multiprocessing import Pool
+from multiprocessing import cpu_count
+from math import isclose
+from sklearn.decomposition import PCA
 import warnings
+
+from optimizers import *
 
 warnings.filterwarnings("ignore")
 
+class aew():
+    def __init__(self, similarity_matrix, data, labels, gamma_init=None):
+        '''
+        Initialize class attributes
+        '''        
+        self.data = data
+        self.labels = labels
+        self.eigenvectors = None
+        self.gamma = self.gamma_initializer(gamma_init)
+        self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
 
-if __name__ == '__main__':
-    #ids_train_file = '/home/bryan_portillo/Desktop/network_intrusion_detection_dataset/Train_data.csv'
+    def correct_similarity_matrix_diag(self, similarity_matrix):
+        '''
+        Correct diagonals of precomputed similarity matrix, if necessary
+        '''        
+        identity = np.zeros((self.data.shape[0], self.data.shape[0]))
+        identity_diag = np.diag(identity)
+        identity_diag_res = identity_diag + 1
+        np.fill_diagonal(similarity_matrix, identity_diag_res)
+        return similarity_matrix
 
-    ids_train_file = '/media/mint/NethermostHallV2/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
+    def gamma_initializer(self, gamma_init=None):
+        '''
+        Initialize gamma by user chosen option
+        '''
+        if gamma_init == None:
+            gamma = np.ones(self.data.loc[[0]].shape[1])
+        elif gamma_init == 'var':
+            gamma = np.var(self.data, axis=0).values
+        elif gamma_init == 'random_int':
+            gamma = np.random.randint(0, 1000, (1, 41))
+        elif gamma_init == 'random_float':
+            rng = np.random.default_rng()
+            gamma = rng.random(size=(1, 41)) 
+        return gamma
 
-    #ids_train_file = '/home/bryanportillo_lt/Documents/py_env/venv/network_intrusion_dataset/Train_data.csv'
-   
-    #ids_train_file = 'e:/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
+    def similarity_function(self, pt1_idx, pt2_idx, gamma):         
+        '''
+        Compute similarity between two points
+        '''
+        point1 = np.asarray(self.data.loc[[pt1_idx]])[0]
+        point2 = np.asarray(self.data.loc[[pt2_idx]])[0]
+        temp_res = 0
+        deg_pt1 = np.sum(self.similarity_matrix[pt1_idx])
+        deg_pt2 = np.sum(self.similarity_matrix[pt2_idx])
+        similarity_measure = np.sum(np.where(np.abs(gamma) > .1e-5, (((point1 - point2)**2)/(gamma**2)), 0))
+        similarity_measure = np.exp(-similarity_measure, dtype=np.longdouble)
+        degree_normalization_term = np.sqrt(np.abs(deg_pt1 * deg_pt2))
+        if degree_normalization_term != 0 and not isclose(degree_normalization_term, 0, abs_tol=1e-100):
+            return similarity_measure / degree_normalization_term
+        else:
+            return 0
+
+    def objective_computation(self, section, adj_matrix, gamma):
+        '''
+        Compute reconstruction error
+        '''        
+        approx_error = 0
+        for idx in section:
+            degree_idx = np.sum(adj_matrix[idx])
+            xi_reconstruction = np.sum([adj_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(adj_matrix[idx])) if idx != y], 0)            
+            if degree_idx != 0 and not isclose(degree_idx, 0, abs_tol=1e-100):
+                xi_reconstruction /= degree_idx
+                xi_reconstruction = xi_reconstruction[0]
+            else:
+                xi_reconstruction = np.zeros(len(self.gamma))
+        return np.sum((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction)**2)
+
+    def objective_function(self, adj_matr, gamma):
+        '''
+        Parallelization of error computation
+        '''
+        split_data = self.split(range(self.data.shape[0]), cpu_count())
+        with Pool(processes=cpu_count()) as pool:
+            errors = [pool.apply_async(self.objective_computation, (section, adj_matr, gamma)) \
+                                                                 for section in split_data]
+            error = [error.get() for error in errors]
+        return np.sum(error)
+
+    def gradient_computation(self, section, similarity_matrix, gamma):
+        '''
+        Compute gradient
+        '''        
+        gradient = np.zeros(len(gamma))
+        for idx in section:
+            dii = np.sum(similarity_matrix[idx])
+            xi_reconstruction = np.sum([similarity_matrix[idx][y]*np.asarray(self.data.loc[[y]])[0] for y in range(len(similarity_matrix[idx])) if idx != y], 0)
+            if dii != 0 and not isclose(dii, 0, abs_tol=1e-100):
+                xi_reconstruction = np.divide(xi_reconstruction, dii, casting='unsafe', dtype=np.longdouble)
+                first_term = np.divide((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction), dii, casting='unsafe', dtype=np.longdouble)
+            else:
+                first_term  = np.zeros_like(xi_reconstruction)
+                xi_reconstruction  = np.zeros_like(xi_reconstruction)
+            cubed_gamma = np.where( np.abs(gamma) > .1e-7 ,  gamma**(-3), 0)
+            dw_dgamma = np.sum([(2*similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*np.asarray(self.data.loc[[y]])[0]) for y in range(self.data.shape[0]) if idx != y])
+            dD_dgamma = np.sum([(2*similarity_matrix[idx][y]* (((np.asarray(self.data.loc[[idx]])[0] - np.asarray(self.data.loc[[y]])[0])**2)*cubed_gamma)*xi_reconstruction) for y in range(self.data.shape[0]) if idx != y])
+            gradient = gradient + (first_term * (dw_dgamma - dD_dgamma))
+            gradient = np.nan_to_num(gradient, nan=0)
+        return gradient
+
+    def split(self, a, n):
+        '''
+        Split an array a into n pieces
+        '''
+        k, m = divmod(len(a), n)
+        return [a[i*k+min(i,m):(i+1)*k+min(i+1,m)] for i in range(n)]
+
+    def gradient_function(self, similarity_matrix, gamma):
+        '''
+        Parallelization of gradient computation
+        '''        
+        gradient = []
+        split_data = self.split(range(self.data.shape[0]), cpu_count())
+        with Pool(processes=cpu_count()) as pool:
+            gradients = [pool.apply_async(self.gradient_computation, (section, similarity_matrix, gamma)) \
+                                                                 for section in split_data]
+            gradients = [gradient.get() for gradient in gradients]
+        return np.sum(gradients, axis=0)
+
+    def optimize_gamma(self, optimizer, num_iterations=100):
+        if optimizer == 'adam':
+            opt_obj = AdamOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, self.gradient_function, num_iterations)
+        elif optimizer == 'simulated_annealing':
+            opt_obj = SimulatedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, num_iterations, cooling_rate=.95)
+        elif optimizer == 'particle_swarm':
+            opt_obj = ParticleSwarmOptimizer(self.similarity_matrix, self.gamma, self.objective_function,  self.generate_edge_weights, 3, len(self.gamma), num_iterations)
+        elif optimizer == 'swarm_based_annealing':
+            opt_obj = SwarmBasedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.gradient_function, self.generate_edge_weights, 3, len(self.gamma), num_iterations)
+        
+        self.gamma = opt_obj.optimize()
+
+        print("Optimized Gamma: ", self.gamma)
+
+    def generate_optimal_edge_weights(self, num_iterations):
+        '''
+        Function to optimize gamma and set the resulting similarity matrix
+        '''        
+        print("Generating Optimal Edge Weights")
+        self.similarity_matrix = self.generate_edge_weights(self.gamma)
+        
+        self.optimize_gamma('simulated_annealing', num_iterations)
+
+        self.similarity_matrix = self.generate_edge_weights(self.gamma)
     
-    opt_cycles = [30, 35, 40, 45,50]
+    def edge_weight_computation(self, section, gamma):
+        '''
+        Compute edge weights
+        '''
+        res = []
+        for idx in section:
+            for vertex in range(self.data.shape[0]):
+                if vertex != idx:
+                    res.append((idx, vertex, self.similarity_function(idx, vertex, gamma)))
+        return res
+
+    def generate_edge_weights(self, gamma):
+        '''
+        Parallelization of edge weight computation
+        '''
+        print("Generating Edge Weights")
+        curr_sim_matr = self.correct_similarity_matrix_diag(np.zeros_like(self.similarity_matrix))
+        split_data = self.split(range(self.data.shape[0]), cpu_count())
+        with Pool(processes=cpu_count()) as pool:
+            edge_weight_res = [pool.apply_async(self.edge_weight_computation, (section, gamma)) for section in split_data]
+            edge_weights = [edge_weight.get() for edge_weight in edge_weight_res]
+        for section in edge_weights:
+            for weight in section:
+                if weight[0] != weight[1]:
+                    curr_sim_matr[weight[0]][weight[1]] = weight[2]
+                    curr_sim_matr[weight[1]][weight[0]] = weight[2]
+        curr_sim_matr = self.subtract_identity(curr_sim_matr)
+        print("Edge Weight Generation Complete")
+        return curr_sim_matr
+
+    def subtract_identity(self, adj_matrix):
+        '''
+        Subtract matrix by identity, for normalized symmetric laplacian
+        '''
+        identity = np.zeros((len(adj_matrix[0]), len(adj_matrix[0]))) 
+        identity_diag = np.diag(identity)
+        identity_diag_res = identity_diag + 2 
+        np.fill_diagonal(identity, identity_diag_res) 
+        adj_matrix = identity - adj_matrix
+        return adj_matrix
+
+    def unit_normalization(self, matrix):
+        '''
+        Normalize matrix to unit length
+        '''
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        return matrix/norms
+
+    def get_eigenvectors(self, num_components, min_variance):
+        '''
+        Cast similarity matrix to lower dimensional representation
+        '''        
+        pca = PCA()
+        if num_components == 'lowest_var':
+            pca.fit(self.similarity_matrix)
+            expl_var = pca.explained_variance_ratio_
+            #print("Variance Distribution First Five: ", expl_var)
+            cum_variance = expl_var.cumsum()
+            num_components = ( cum_variance <= min_variance).sum() + 1
+        pca = PCA(n_components=num_components)
+        pca = pca.fit_transform(self.similarity_matrix)
+        self.eigenvectors = self.unit_normalization(pca.real)
 
-    opt_cycles = [10]
-    '''
-    opt_cycles = [2, 5, 10, 25, 30, 35, 40, 45,50]
-
-    opt_cycles = [5]
-    
-    for rep in range(5):
-
-        for cycle in opt_cycles:
-    
-            synthetic_data_tester(rep, cycle)
-    '''     
-    
-        #synthetic_data_tester(rep)
-
-
-    data_obj = data(datapath = ids_train_file)
-
-    data_obj.load_data(400)
-
-    data_obj.load_labels()
-
-    data_obj.encode_categorical('protocol_type', 'data')
-
-    data_obj.encode_categorical('service', 'data')
-
-    data_obj.encode_categorical('flag', 'data')
-
-    data_obj.encode_categorical('class', 'labels')
-
-    data_obj.scale_data('min_max')
-
-    data_obj.generate_graphs(100)
-
-    aew_obj = aew(data_obj.graph.toarray(), data_obj.data, data_obj.labels, 'var')
-
-    aew_obj.similarity_matrix = aew_obj.generate_edge_weights(aew_obj.gamma)
-
-    #aew_obj.get_eigenvectors(2, .90)
-
-    pca = PCA(n_components=2)
-
-    aew_obj.data = pd.DataFrame(pca.fit_transform(data_obj.data))
-
-    plot_error_surface(aew_obj)
-
-    #aew_obj.similarity_matrix = aew_obj.
-
-    #opt_cycles = [10000]
-
-    #test_diag_file = open("errorvopt.txt", "a")
-    '''
-    for opt_steps in opt_cycles:
-        for rep in range(1):
-            data_obj = data(datapath = ids_train_file)
-
-            data_obj.load_data(500)
-
-            data_obj.load_labels()
-
-            data_obj.encode_categorical('protocol_type', 'data')
-
-            data_obj.encode_categorical('service', 'data')
-
-            data_obj.encode_categorical('flag', 'data')
-
-            data_obj.encode_categorical('class', 'labels')
-
-            data_obj.scale_data('min_max')
-
-            data_obj.generate_graphs(150)
-
-            data_obj.generate_graphs(150)
-
-            diag_base = str(rep) + "," + str(opt_steps) + ","
-
-            dir_name = 'results_' + str(rep) + '_' + str(opt_steps) 
-
-            aew_obj = aew(data_obj.graph.toarray(), data_obj.data, data_obj.labels)
-
-            aew_obj.generate_optimal_edge_weights(opt_steps)
-
-            error_str = diag_base + str(aew_obj.final_error) + "\n"
-
-            test_diag_file.write(error_str)
-
-            os.makedirs(str('./'+dir_name+'/plain_data/twod/'), exist_ok=True)
-    
-            os.makedirs(str('./'+dir_name+'/plain_data/threed/'), exist_ok=True)
-
-            os.makedirs(str('./'+dir_name+'/eigen_data/twod/'), exist_ok=True)
-
-            os.makedirs(str('./'+dir_name+'/eigen_data/threed/'), exist_ok=True)
-
-            ###### Test 2d Data
-
-            aew_obj.get_eigenvectors(2, .90)
-
-            ###### Original Data Test
-
-            ##base Daataa
-
-            visualizer_obj = visualizer(data_obj.labels, 2)
-
-            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "orig_data_2d.html", str("./"+dir_name+"/plain_data/"), downsize=True)
-
-            ####clustering the whole regulaar data
-
-            clustering_obj = clustering(base_data=data_obj.data.to_numpy(), data=aew_obj.data, labels = aew_obj.labels, path_name = str("./"+dir_name+"/plain_data/twod/"),
-name_append='whole_regular_2d_data', workers=-1)
-
-            clustering_obj.generate_spectral()
-
-            visualizer_obj = visualizer(clustering_obj.pred_labels, 2)
-
-            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "plain_data_90_perc_var_2d.html", str("./"+dir_name+"/plain_data/"))
-
-            ###### Eigenvector Data Test
-
-            clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.eigenvectors, labels=aew_obj.labels, path_name = str("./"+dir_name+"/"), name_append="eigenvector_2d_data", workers=-1)
-    
-            clustering_obj.generate_spectral()
-
-            visualize_obj = visualizer(clustering_obj.pred_labels, 2)
-
-            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(),  "eigen_data_90_perc_var_2d.html", str("./"+dir_name+"/eigen_data/"))
-
-            ###### Test 3d Data
-
-            aew_obj.get_eigenvectors(3, .90)
-
-            ###### Original Data Test
-
-            visualizer_obj = visualizer(data_obj.labels, 3)
-    
-            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "orig_data_3.html", str("./"+dir_name+"/plain_data/"))
-
-            clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.data, labels = aew_obj.labels, path_name = str("./"+dir_name+"/plain_data/threed/"), name_append='whole_regular_3d_data', workers=-1)
-
-            clustering_obj.generate_spectral()
-
-            visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
-
-            visualizer_obj.lower_dimensional_embedding(data_obj.data.to_numpy(), "plain_data_90_perc_var_3d", str("./"+dir_name+"/plain_data/"))
-
-            ###### Eigenvector Data Test
-
-            clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.eigenvectors, labels=aew_obj.labels, path_name = str("./"+dir_name+"/"), name_append="eigenvector_3d_data", workers=-1)
-
-            clustering_obj.generate_spectral()
-
-            visualizer_obj = visualizer(clustering_obj.pred_labels, 3)
-
-            visualizer_obj.lower_dimensional_embedding(aew_obj.data.to_numpy(),  "eigen_data_90_perc_var_3d.html", str("./"+dir_name+"/eigen_data/"))
-    
-    '''
-'''
-
-    clustering_with_adj_matr_prec_kmeans = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
-
-    print("Kmeans Train: ", accuracy_score(clustering_with_adj_matr_prec_kmeans.fit_predict(aew_train.eigenvectors), aew_train.labels))
-
-    clustering_with_adj_matr_prec_disc = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='discretize', n_jobs=-1)
-
-    print("Discretize Train: ", accuracy_score(clustering_with_adj_matr_prec_disc.fit_predict(aew_train.eigenvectors), aew_train.labels))
-
-    clustering_with_adj_matr_prec_clust = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='cluster_qr', n_jobs=-1)
-
-    print("Cluster_qr Train: ", accuracy_score(clustering_with_adj_matr_prec_clust.fit_predict(aew_train.eigenvectors), aew_train.labels))
-
-    clustering_with_adj_matr_prec_kmeans1 = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='kmeans', n_jobs=-1)
-
-    print("Kmeans Test: ", accuracy_score(clustering_with_adj_matr_prec_kmeans1.fit_predict(aew_test.eigenvectors), aew_test.labels))
-
-    clustering_with_adj_matr_prec_disc1 = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='discretize', n_jobs=-1)
-
-    print("Discretize Test: ", accuracy_score(clustering_with_adj_matr_prec_disc1.fit_predict(aew_test.eigenvectors), aew_test.labels))
-
-    clustering_with_adj_matr_prec_clust1 = SpectralClustering(n_clusters=2, affinity='nearest_neighbors', assign_labels='cluster_qr', n_jobs=-1)
-
-    print("Cluster_qr Test: ", accuracy_score(clustering_with_adj_matr_prec_clust1.fit_predict(aew_test.eigenvectors), aew_test.labels))
-    
-    
-    plain_graph_clustering = clustering(aew_train.eigenvectors, aew_train.labels, aew_test.eigenvectors, aew_test.labels, "full", "40_dim_no_proj_graph_data", clustering_methods=clustering_meths,  workers = -1)
-
-    plain_graph_clustering.generate_clustering()
-'''
-'''
-    num_components = [3, 8, 12, 15, 20, 40]
-
-    for num_comp in num_components:
-
-        print("Current number of components: ", num_comp)
-
-        data_obj.train_projection, _ = data_obj.downsize_data(aew_train.eigenvectors, 'train', num_comp)
-
-        data_obj.test_projection, _ = data_obj.downsize_data(aew_test.eigenvectors, 'test', num_comp)
-        init_path = './results/orig_data_visualization/num_comp_' + str(num_comp) + '/'
-
-        os.makedirs(init_path, exist_ok=True)
-
-        for projection in data_obj.train_projection.keys():
-
-            #print("Train NaNs: ", np.count_nonzero(np.isnan(data_obj.train_projection[projection])))    
-
-            #print("Test NaNs: ", np.count_nonzero(np.isnan(data_obj.test_projection[projection])))
-
-            data_obj.lower_dimensional_embedding(data_obj.train_projection[projection], 'train', 'Train Mappings Base: 3-Dimensions', init_path)
-
-            data_obj.lower_dimensional_embedding(data_obj.test_projection[projection], 'test', 'Test Mappings Base: 3-Dimensions', init_path)
-
-            clustering_graph_data = clustering(data_obj.train_projection[projection], data_obj.train_labels, data_obj.test_projection[projection], data_obj.test_labels, num_comp, projection, clustering_methods=clustering_meths, workers = -1)
-
-            clustering_graph_data.generate_clustering()
-    '''

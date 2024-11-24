@@ -26,10 +26,11 @@ class data():
         self.graph = None
         self.labels = labels
         self.datapath = datapath
-        self.class_labels = {'class': {'normal': 0, 'anomaly':1}}
+        self.class_labels = {'defects': {'no': 0, 'yes':1}}
         self.similarity_matrix = None
 
     def scale_data(self, scaling):
+        '''
         cols = self.data.loc[:, ~self.data.columns.isin(['flag',
                                                                      'land', 'wrong_fragment', 'urgent',
                                                                      'num_failed_logins', 'logged_in',
@@ -38,6 +39,8 @@ class data():
                                                                      'is_host_login', 'is_guest_login', 'serror_rate',                                                                     'srv_serror_rate', 'rerror_rate', 'srv_rerror_rate',                                                                  'same_srv_rate', 'diff_srv_rate',
                                                                      'srv_diff_host_rate', 'dst_host_same_srv_rate',
                                                                      'dst_host_diff_srv_rate', 'dst_host_same_src_port_rate',                                                              'dst_host_srv_diff_host_rate', 'dst_host_serror_rate',                                                                'dst_host_srv_serror_rate', 'dst_host_rerror_rate',                                                                   'dst_host_srv_rerror_rate', 'protocol_type ', 'service ' ])].columns
+        '''
+        cols = self.data.columns
         cols = np.asarray(cols)
         if scaling == 'standard':
             ct = ColumnTransformer([('normalize', StandardScaler(), cols)],
@@ -71,6 +74,7 @@ class data():
             label_encoder = label_encoder.fit(self.data[column_name])
             self.data[column_name] = label_encoder.transform(self.data[column_name])
         elif target_set == 'labels':
+            #print(self.labels)
             self.labels = self.labels.replace(self.class_labels)
 
     def load_data(self, sample_size=None):
@@ -79,8 +83,8 @@ class data():
             self.data = self.data.sample(sample_size)
     
     def load_labels(self):
-        self.labels = pd.DataFrame(self.data['class'], columns=['class'])
-        self.data = self.data.loc[:, self.data.columns != 'class']
+        self.labels = pd.DataFrame(self.data['defects'], columns=['defects'])
+        self.data = self.data.loc[:, self.data.columns != 'defects']
         self.reset_indices()
 
     def reset_indices(self):
@@ -167,7 +171,7 @@ class visualizer():
     def plot_2d(self, data, title, path, cdict):
         df = pd.DataFrame({ 'x1': data[:,0],
                             'x2': data[:,1],
-                            'label': np.asarray(self.labels['class']) })
+                            'label': np.asarray(self.labels['defects']) })
 
         for label in np.unique(self.labels):
             idx = np.where(self.labels == label)
@@ -187,7 +191,7 @@ class visualizer():
         df = pd.DataFrame({ 'x1': data[:,0],
                             'x2': data[:,1],
                             'x3': data[:,2],
-                            'label': np.asarray(self.labels['class'])})
+                            'label': np.asarray(self.labels['defects'])})
 
         for label in np.unique(self.labels):
             idx = np.where(self.labels == label)

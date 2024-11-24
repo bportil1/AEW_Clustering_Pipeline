@@ -57,7 +57,7 @@ def plot_error_surface(aew_obj):
     # Create an instance of the optimization function
     opt_function = OptimizationFunction(data = aew_obj.data, similarity_matrix = aew_obj.similarity_matrix)
     
-    values = np.arange(-10, 10.1, .10)
+    values = np.arange(-5, 5.1, .20)
 
     sim_gammas = np.asarray([list(pair) for pair in itertools.product(values, repeat=2)])
 

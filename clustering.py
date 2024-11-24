@@ -18,7 +18,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import cross_validate
 from preprocessing_utils import *
-from spread_opt import *
+from aew import *
 
 import warnings
 
@@ -52,11 +52,18 @@ class clustering():
         
 
     def flatten_labels(self, labels):
-        return labels['class'].tolist()
+        return labels['defects'].tolist()
 
     def get_clustering_hyperparams(self, cluster_alg):
 
         clustering_params = {
+                'gaussianmixture': {'n_components' : [2,3,4,5],
+                                         'covariance_type': ('full', 'tied', 'diag', 'spherical'),
+                                         'init_params': ('kmeans', 'k-means++', 'random', 'random_from_data')
+                },
+                'kmeans': {'k_means_alg': ('lloyd', 'elkan'),
+                           'n_clusters' : [2, 3, 4, 5, 6, 7, 8] # , 9, 10, 15, 20]
+                },
                 'spectral': {'n_clusters': [2], 
                              'affinity': ('nearest_neighbors', 'rbf'),
                              'assign_labels': ('kmeans', 'discretize', 'cluster_qr'),
@@ -64,6 +71,31 @@ class clustering():
                 }
         }
         return clustering_params[cluster_alg]
+
+    def generate_gaussianmixture(self):
+        print("Computing GaussianMixture")
+        hyperparams = self.get_clustering_hyperparams('gaussianmixture')
+        outpath = self.base_path + "gaussianmixture/"
+        for cov_type in hyperparams['covariance_type']:
+            for init_par in hyperparams['init_params']:
+                for n_comp in hyperparams['n_components']:
+                    clustering = mixture.GaussianMixture(n_components=n_comp, covariance_type=cov_type, init_params=init_par)
+                    self.cluster_evaluation('gaussianmixture', (cov_type, init_par, n_comp), clustering)
+        fin_path = self.base_path + self.name_append +'_concat_data.csv'
+        self.fin_df.to_csv(fin_path, index=False)
+
+
+    def generate_kmeans(self):
+        print("Computing K-means")
+        hyperparams = self.get_clustering_hyperparams('kmeans')
+        outpath = self.base_path + "kmeans/"
+        for aff in hyperparams['k_means_alg']:
+            for num_clust in hyperparams['n_clusters']:
+                clustering = KMeans(n_clusters=num_clust, algorithm=aff)
+                self.cluster_evaluation('kmeans', (aff, num_clust), clustering) 
+        fin_path = self.base_path + self.name_append +'_concat_data.csv'
+        self.fin_df.to_csv(fin_path, index=False)
+
 
     def generate_spectral(self):
         print("Computing Spectral")
@@ -143,7 +175,7 @@ class clustering():
 
         vis_file_name = filename_base + "_eigen.html"
 
-        labels_pred = pd.DataFrame(labels_pred, columns=['class'])
+        labels_pred = pd.DataFrame(labels_pred, columns=['defects'])
 
         if isinstance(self.data, np.ndarray):
             dims = self.data.shape[1]  # Returns number of columns in ndarray
