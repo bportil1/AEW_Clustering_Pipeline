@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.pipeline import make_pipeline
 from time import time
 from sklearn.neighbors import kneighbors_graph
+from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import csr_matrix
 import plotly.express as px
 
@@ -93,7 +94,7 @@ class data():
     def reset_indices(self):
         self.data = self.data.reset_index(drop=True)
         self.labels = self.labels.reset_index(drop=True)
-
+    
     def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean'):
         '''
         Generate the k-NN graph using FAISS
@@ -140,8 +141,13 @@ class data():
         
         return self.graph
 
-    #def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean'):
-    #    self.graph = kneighbors_graph(self.data, n_neighbors=num_neighbors, mode=mode, metric=metric, p=2, include_self=True, n_jobs=-1)
+    '''
+    def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean'):
+        nn = NearestNeighbors(n_neighbors=num_neighbors, algorithm='ball_tree', metric=metric, p=2, n_jobs=-1)
+        nn.fit(self.data)
+        self.graph = nn.kneighbors_graph(self.data, mode=mode)
+        #self.graph = kneighbors_graph(self.data, n_neighbors=num_neighbors, algorithm='ball_tree', mode=mode, metric=metric, p=2, include_self=True, n_jobs=-1)
+    '''
 
 class visualizer():
     def __init__(self, labels, dims):

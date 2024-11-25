@@ -70,24 +70,19 @@ if __name__ == '__main__':
     #plot_error_surface(aew_obj)
     '''
 
+    data_obj = data(datapath = cm1_file)
+
+    data_obj.load_data()
+
+    data_obj.load_labels()
+
+    data_obj.encode_categorical('defects', 'labels')
+
+    data_obj.scale_data('min_max')
+
+    data_obj.generate_graphs(100)
+
     for rep in range(5):
-        data_obj = data(datapath = cm1_file)
-
-        data_obj.load_data()
-
-        data_obj.load_labels()
-
-        #data_obj.encode_categorical('protocol_type', 'data')
-
-        #data_obj.encode_categorical('service', 'data')
-
-        #data_obj.encode_categorical('flag', 'data')
-
-        data_obj.encode_categorical('defects', 'labels')
-
-        data_obj.scale_data('min_max')
-
-        data_obj.generate_graphs(100)
 
         diag_base = str(rep) + "," 
 

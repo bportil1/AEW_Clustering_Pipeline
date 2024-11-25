@@ -6,7 +6,7 @@ from sklearn.decomposition import PCA
 import scipy.sparse as sp
 import warnings
 
-from optimizers import *
+from optimizers_sm import *
 
 warnings.filterwarnings("ignore")
 
