@@ -106,17 +106,23 @@ class data():
         # Ensure the data is in dense format (FAISS requires dense arrays)
         data_matrix = np.array(self.data, dtype=np.float32)
 
+        if not data_matrix.flags['C_CONTIGUOUS']:
+            data_matrix = np.ascontiguousarray(data_matrix)
+        
+        res = faiss.StandardGpuResources() 
         # Initialize FAISS index for L2 distance (Euclidean)
         if metric == 'euclidean':
-            index = faiss.IndexFlatL2(data_matrix.shape[1])
+            cpu_index = faiss.IndexFlatL2(data_matrix.shape[1])
         else:
             raise ValueError("Currently, only 'euclidean' metric is supported.")
 
         # Add the data to the FAISS index
-        index.add(data_matrix)
+        gpu_index = faiss.index_cpu_to_gpu(res, 0, cpu_index)        
+
+        gpu_index.add(data_matrix)
 
         # Perform the k-NN search to get the indices of neighbors and distances
-        distances, indices = index.search(data_matrix, num_neighbors)  # distances and indices of neighbors
+        distances, indices = gpu_index.search(data_matrix, num_neighbors)  # distances and indices of neighbors
 
         # Construct the graph
         # Create an empty sparse matrix to hold the graph data
