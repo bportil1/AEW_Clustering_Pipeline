@@ -171,6 +171,9 @@ class aew():
         '''
         print("Generating Edge Weights")
         curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
+        mm_file = './mmap_file'
+        curr_sim_matr = np.memmap(mm_file + 'curr_sim_matr', dtype='float32', mode='w+', shape=curr_sim_matr.shape)
+
         split_data = self.split(range(self.data.shape[0]), cpu_count())
         with Pool(processes=cpu_count()) as pool:
             edge_weight_res = [pool.apply_async(self.edge_weight_computation, (section, gamma)) for section in split_data]

@@ -138,7 +138,10 @@ class data():
 
         # Convert the graph data to a sparse matrix
         self.graph = csr_matrix(graph_data)
-        
+       
+        mm_file = './mmap_file'
+        self.graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=self.graph.shape)
+
         return self.graph
 
     '''
