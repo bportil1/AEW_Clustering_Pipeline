@@ -22,7 +22,7 @@ from sklearn.compose import ColumnTransformer
 
 import os
 
-import faiss
+#import faiss
 
 class data():
     def __init__(self, data = None, labels = None, datapath= None):

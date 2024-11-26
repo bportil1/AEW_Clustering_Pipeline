@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import cross_validate
-from preprocessing_utils import *
+from preprocessing_utils_gpu import *
 from aew_sm import *
 
 import warnings

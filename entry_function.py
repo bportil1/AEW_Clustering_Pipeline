@@ -1,5 +1,5 @@
 from aew_sm import *
-from preprocessing_utils import *
+from preprocessing_utils_gpu import *
 from clustering import *
 from aew_surface_plotter import *
 
@@ -20,7 +20,9 @@ if __name__ == '__main__':
    
     #ids_train_file = 'e:/py_env/venv/network_intrusion_detection_dataset/Train_data.csv'
 
-    cm1_file = '/media/mint/NethermostHallV2/py_env/venv/bug_detection_datasets/jm1.csv'
+    #cm1_file = '/media/mint/NethermostHallV2/py_env/venv/bug_detection_datasets/jm1.csv'
+
+    cm1_file = 'sq_ds/jm1.csv'
 
     '''
     opt_cycles = [2, 5, 10, 25, 30, 35, 40, 45,50]
