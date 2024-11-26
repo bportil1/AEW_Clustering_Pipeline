@@ -25,6 +25,9 @@ if __name__ == '__main__':
 
     cm1_file = 'sq_ds/jm1.csv'
 
+    #cm1_file = 'sq_ds/kc2.csv'
+
+
     '''
     opt_cycles = [2, 5, 10, 25, 30, 35, 40, 45,50]
 
@@ -95,7 +98,7 @@ if __name__ == '__main__':
 
         aew_obj = aew(data_obj.graph, data_obj.data, data_obj.labels)
 
-        aew_obj.generate_optimal_edge_weights(100)
+        aew_obj.generate_optimal_edge_weights(1)
 
         #error_str = diag_base + str(aew_obj.final_error) + "\n"
 

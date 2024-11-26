@@ -75,7 +75,8 @@ class aew():
         '''
         approx_error = 0
         for idx in section:
-            degree_idx = np.sum(adj_matrix[idx, :].toarray())
+            #degree_idx = np.sum(adj_matrix[idx, :].toarray())
+            degree_idx = np.sum(adj_matrix[idx, :])
             xi_reconstruction = np.sum([adj_matrix[idx, y] * np.asarray(self.data.loc[[y]])[0] for y in range(len(self.gamma)) if idx != y], axis=0)
             if degree_idx != 0 and not isclose(degree_idx, 0, abs_tol=1e-100):
                 xi_reconstruction /= degree_idx
@@ -211,11 +212,13 @@ class aew():
         '''
         pca = PCA()
         if num_components == 'lowest_var':
-            pca.fit(self.similarity_matrix.toarray())  # Convert sparse to dense for PCA fitting
+            #pca.fit(self.similarity_matrix.toarray())  # Convert sparse to dense for PCA fitting
+            pca.fit(np.asarray(self.similarity_matrix)) 
             expl_var = pca.explained_variance_ratio_
             cum_variance = expl_var.cumsum()
             num_components = (cum_variance <= min_variance).sum() + 1
         pca = PCA(n_components=num_components)
-        pca_result = pca.fit_transform(self.similarity_matrix.toarray())
+        #pca_result = pca.fit_transform(self.similarity_matrix.toarray())
+        pca_result = pca.fit_transform(np.asarray(self.similarity_matrix))
         pca_normalized = self.unit_normalization(sp.csr_matrix(pca_result))
         self.eigenvectors = pca_normalized.toarray()
