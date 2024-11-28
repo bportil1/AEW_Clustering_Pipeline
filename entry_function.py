@@ -96,19 +96,14 @@ if __name__ == '__main__':
 
         os.makedirs(str('./'+dir_name+'/plain_data/'), exist_ok=True)
 
-        #print("Strat data: ", data_obj.stratified_data)
-
-        #print("Strat labesl: ", data_obj.stratified_labels)
-
-        #print("Strat data len: ", data_obj.stratified_data.shape)
-
         data_obj.generate_graphs(100, rep)
 
-        print("Strat  graph: ", data_obj.graph)
+        #print("Strat  graph: ", data_obj.graph)
 
         aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.stratified_labels, rep)
  
-        aew_obj.generate_optimal_edge_weights(1)
+        #aew_obj.generate_optimal_edge_weights(1)
+        aew_obj.generate_optimal_edge_weights(1000)
 
         #error_str = diag_base + str(aew_obj.final_error) + "\n"
 
