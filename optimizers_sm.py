@@ -1,4 +1,3 @@
-import numpy as np
 
 import numpy as np
 import scipy.sparse as sp
@@ -99,7 +98,7 @@ class SimulatedAnnealingOptimizer:
                 curr_gamma = new_position
                 curr_energy = new_energy
                 update_ctr = 0
-            elif np.random.rand() > alpha
+            elif np.random.rand() > alpha:
                 curr_gamma = new_position
                 curr_energy = new_energy
                 update_ctr = 0

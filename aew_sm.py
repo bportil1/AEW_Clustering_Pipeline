@@ -11,7 +11,7 @@ from optimizers_sm import *
 warnings.filterwarnings("ignore")
 
 class aew():
-    def __init__(self, similarity_matrix, data, labels, gamma_init=None):
+    def __init__(self, similarity_matrix, data, labels, test_rep, gamma_init=None):
         '''
         Initialize class attributes with sparse matrix handling
         '''
@@ -20,7 +20,6 @@ class aew():
         self.eigenvectors = None
         self.gamma = self.gamma_initializer(gamma_init)
         self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
-
 
     def correct_similarity_matrix_diag(self, similarity_matrix):
         '''

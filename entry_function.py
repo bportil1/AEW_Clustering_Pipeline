@@ -1,6 +1,6 @@
 from aew_sm import *
 #from aew_gpu_3 import *
-from preprocessing_utils_gpu import *
+from preprocessing_utils import *
 from clustering import *
 from aew_surface_plotter import *
 
@@ -76,17 +76,17 @@ if __name__ == '__main__':
     #plot_error_surface(aew_obj)
     '''
 
-    data_obj = data(datapath = cm1_file)
+    data_obj = data(cm1_file, graph_type='stratified')
 
-    data_obj.load_data()
+    #data_obj.load_data()
 
-    data_obj.load_labels()
+    #data_obj.load_labels()
 
     data_obj.encode_categorical('defects', 'labels')
 
     data_obj.scale_data('min_max')
 
-    data_obj.generate_graphs(100)
+    #data_obj.generate_graphs(100)
 
     for rep in range(5):
 
@@ -96,8 +96,18 @@ if __name__ == '__main__':
 
         os.makedirs(str('./'+dir_name+'/plain_data/'), exist_ok=True)
 
-        aew_obj = aew(data_obj.graph, data_obj.data, data_obj.labels)
+        #print("Strat data: ", data_obj.stratified_data)
 
+        #print("Strat labesl: ", data_obj.stratified_labels)
+
+        #print("Strat data len: ", data_obj.stratified_data.shape)
+
+        data_obj.generate_graphs(100, rep)
+
+        print("Strat  graph: ", data_obj.graph)
+
+        aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.stratified_labels, rep)
+ 
         aew_obj.generate_optimal_edge_weights(1)
 
         #error_str = diag_base + str(aew_obj.final_error) + "\n"

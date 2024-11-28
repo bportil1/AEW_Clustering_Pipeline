@@ -22,30 +22,38 @@ from sklearn.compose import ColumnTransformer
 
 import os
 
-#import faiss
+import faiss
 
-class data():
-    def __init__(self, data = None, labels = None, datapath= None):
-        self.data = data
-        self.graph = None
-        self.labels = labels
-        self.datapath = datapath
+class data:
+    def __init__(self, path, graph_type='whole'):
+        self.datapath = path
+        self.data = self.load_data()
+        self.data, self.labels = self.load_labels()
         self.class_labels = {'defects': {'no': 0, 'yes':1}}
-        self.similarity_matrix = None
-        self.stratified_data, self.stratified_labels = self.stratified_data(.4)
-        self.stratified_graph = self.stratified_graph()
+        #self.similarity_matrix = None
+        if graph_type == 'stratified':
+            self.stratified_data, self.stratified_labels = self.stratified_data(.4, 1)
+            print(self.stratified_data)
+            print(self.stratified_labels)
+        #self.stratified_graph = None
 
-    def stratified_data(self, sample_size):
-        stratified_split = StratifiedShuffleSplit(n_splits=1, test_size=sample_size)
+        self.graph = None
 
-        for train_idx, test_idx in stratified_split.split(self.data, self.data['defects'])
-            stratified_data = df.iloc[train_idx]           
+    def stratified_data(self, sample_size, splits):
+        stratified_split = StratifiedShuffleSplit(n_splits=splits, test_size=sample_size)
 
-        strat_labels = pd.DataFrame(stratified_data['defects'], columns=['defects'])
-        strat_data = stratified_data.loc[:, stratified_data.columns != 'defects']
+        indices =  stratified_split.split(self.data, self.labels)     
+
+        strat_data = []
+        strat_labels = []
+
+        for idx, (train, test) in enumerate(indices):
+            
+            strat_data.append(self.data.iloc[train])
+            strat_labels.append(self.labels.iloc[train])
     
-        strat_data = self.data.reset_index(drop=True)
-        strat_labels = self.labels.reset_index(drop=True)
+            strat_data[idx] = strat_data[idx].reset_index(drop=True)
+            strat_labels[idx] = strat_labels[idx].reset_index(drop=True)
 
         return strat_data, strat_labels
 
@@ -98,20 +106,23 @@ class data():
             self.labels = self.labels.replace(self.class_labels)
 
     def load_data(self, sample_size=None):
-        self.data = pd.read_csv(self.datapath)
+        data = pd.read_csv(self.datapath)
         if sample_size != None:
-            self.data = self.data.sample(sample_size)
-    
-    def load_labels(self):
-        self.labels = pd.DataFrame(self.data['defects'], columns=['defects'])
-        self.data = self.data.loc[:, self.data.columns != 'defects']
-        self.reset_indices()
+            return data.sample(sample_size)
+        else:
+            return data
 
-    def reset_indices(self):
-        self.data = self.data.reset_index(drop=True)
-        self.labels = self.labels.reset_index(drop=True)
-    
-    def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean', data_type='whole'):
+    def load_labels(self):
+        labels = pd.DataFrame(self.data['defects'], columns=['defects'])
+        data = self.data.loc[:, self.data.columns != 'defects']
+        return self.reset_indices(data, labels)
+
+    def reset_indices(self, data, labels):
+        data = data.reset_index(drop=True)
+        labels = labels.reset_index(drop=True)
+        return data, labels
+
+    def generate_graphs(self, num_neighbors, rep, mode='distance', metric='euclidean', data_type='whole'):
         '''
         Generate the k-NN graph using FAISS
         
@@ -124,7 +135,10 @@ class data():
         # Ensure the data is in dense format (FAISS requires dense arrays)
             data_matrix = np.array(self.data, dtype=np.float32)
         elif data_type == 'stratified':
-            data_matrix = np.array(self.stratifed_data, dtype=np.float32)
+            print(self.stratified_data)
+
+            print(self.stratified_data[rep])
+            data_matrix = np.array(self.stratified_data[rep], dtype=np.float32)
 
         # Initialize FAISS index for L2 distance (Euclidean)
         if metric == 'euclidean':
@@ -156,12 +170,11 @@ class data():
             raise ValueError("Invalid mode. Use 'distance' or 'connectivity'.")
 
         # Convert the graph data to a sparse matrix
-        self.graph = csr_matrix(graph_data)
+        graph = csr_matrix(graph_data)
        
         mm_file = './mmap_file'
-        self.graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=self.graph.shape)
-
-        return self.graph
+        self.graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=graph.shape)
+        #return graph
 
     '''
     def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean'):
