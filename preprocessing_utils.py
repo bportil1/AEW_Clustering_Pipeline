@@ -32,9 +32,9 @@ class data:
         self.class_labels = {'defects': {'no': 0, 'yes':1}}
         #self.similarity_matrix = None
         if graph_type == 'stratified':
-            self.stratified_data, self.stratified_labels = self.stratified_data(.4, 1)
-            print(self.stratified_data)
-            print(self.stratified_labels)
+            self.stratified_data, self.stratified_labels = self.stratified_data(.8, 5)
+            #print(self.stratified_data)
+            #print(self.stratified_labels)
         #self.stratified_graph = None
 
         self.graph = None
@@ -135,9 +135,8 @@ class data:
         # Ensure the data is in dense format (FAISS requires dense arrays)
             data_matrix = np.array(self.data, dtype=np.float32)
         elif data_type == 'stratified':
-            print(self.stratified_data)
+            #print(self.stratified_data)
 
-            print(self.stratified_data[rep])
             data_matrix = np.array(self.stratified_data[rep], dtype=np.float32)
 
         # Initialize FAISS index for L2 distance (Euclidean)
@@ -156,13 +155,13 @@ class data:
         # Create an empty sparse matrix to hold the graph data
         if mode == 'distance':
             # Use the distances to create the graph (edges weighted by distance)
-            graph_data = np.zeros((len(self.data), len(self.data)))
+            graph_data = np.zeros((len(self.stratified_data[rep]), len(self.stratified_data[rep])))
             for i in range(len(indices)):
                 for j in range(num_neighbors):
                     graph_data[i, indices[i, j]] = distances[i, j]
         elif mode == 'connectivity':
             # Use binary connectivity (1 if neighbor, 0 otherwise)
-            graph_data = np.zeros((len(self.data), len(self.data)))
+            graph_data = np.zeros((len(self.stratified_data[rep]), len(self.stratified_data[rep])))
             for i in range(len(indices)):
                 for j in range(num_neighbors):
                     graph_data[i, indices[i, j]] = 1
@@ -173,7 +172,8 @@ class data:
         graph = csr_matrix(graph_data)
        
         mm_file = './mmap_file'
-        self.graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=graph.shape)
+        graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=graph.shape)
+        self.graph = graph
         #return graph
 
     '''

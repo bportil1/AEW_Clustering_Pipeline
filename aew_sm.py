@@ -170,6 +170,7 @@ class aew():
         Parallelization of edge weight computation using sparse matrix operations
         '''
         print("Generating Edge Weights")
+        print("Data Size: ", self.similarity_matrix.shape)
         curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
         mm_file = './mmap_file'
         curr_sim_matr = np.memmap(mm_file + 'curr_sim_matr', dtype='float32', mode='w+', shape=curr_sim_matr.shape)

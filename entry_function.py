@@ -96,11 +96,9 @@ if __name__ == '__main__':
 
         os.makedirs(str('./'+dir_name+'/plain_data/'), exist_ok=True)
 
-        data_obj.generate_graphs(100, rep)
+        data_obj.generate_graphs(100, rep, data_type='stratified')
 
-        #print("Strat  graph: ", data_obj.graph)
-
-        aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.stratified_labels, rep)
+        aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.stratified_labels[rep], rep)
  
         #aew_obj.generate_optimal_edge_weights(1)
         aew_obj.generate_optimal_edge_weights(1000)
