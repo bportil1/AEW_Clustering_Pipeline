@@ -79,6 +79,7 @@ class SimulatedAnnealingOptimizer:
         '''
         Optimization function
         '''
+        update_ctr = 0
         curr_gamma = self.gamma
         curr_energy = self.objective_function(self.similarity_matrix, self.gamma)
         curr_sim_matr = self.similarity_matrix
@@ -97,6 +98,13 @@ class SimulatedAnnealingOptimizer:
             if new_energy < curr_energy and np.random.rand() < alpha:
                 curr_gamma = new_position
                 curr_energy = new_energy
+                update_ctr = 0
+            elif np.random.rand() > alpha
+                curr_gamma = new_position
+                curr_energy = new_energy
+                update_ctr = 0
+            else: 
+                update_ctr += 1
 
             self.temperature *= self.cooling_rate
 
@@ -125,7 +133,7 @@ class SimulatedAnnealingOptimizer:
         if new_energy < curr_energy:
             return 1.0
         else:
-            return np.exp((curr_energy - new_energy) / self.temperature)
+            return np.exp(-((new_energy-curr_energy) / self.temperature))
 
 class ParticleSwarmOptimizer:
     def __init__(self, similarity_matrix, gamma, objective_function, update_sim_matr, num_particles, dimensions, max_iter, w=0.5, c1=1.5, c2=1.5):

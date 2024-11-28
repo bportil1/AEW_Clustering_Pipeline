@@ -15,9 +15,9 @@ from sklearn.pipeline import make_pipeline
 from time import time
 from sklearn.neighbors import kneighbors_graph
 from sklearn.neighbors import NearestNeighbors
+from sklearn.model_selection import StratifiedShuffleSplit
 from scipy.sparse import csr_matrix
 import plotly.express as px
-
 from sklearn.compose import ColumnTransformer
 
 import os
@@ -32,6 +32,22 @@ class data():
         self.datapath = datapath
         self.class_labels = {'defects': {'no': 0, 'yes':1}}
         self.similarity_matrix = None
+        self.stratified_data, self.stratified_labels = self.stratified_data(.4)
+        self.stratified_graph = self.stratified_graph()
+
+    def stratified_data(self, sample_size):
+        stratified_split = StratifiedShuffleSplit(n_splits=1, test_size=sample_size)
+
+        for train_idx, test_idx in stratified_split.split(self.data, self.data['defects'])
+            stratified_data = df.iloc[train_idx]           
+
+        strat_labels = pd.DataFrame(stratified_data['defects'], columns=['defects'])
+        strat_data = stratified_data.loc[:, stratified_data.columns != 'defects']
+    
+        strat_data = self.data.reset_index(drop=True)
+        strat_labels = self.labels.reset_index(drop=True)
+
+        return strat_data, strat_labels
 
     def scale_data(self, scaling):
         '''
@@ -95,7 +111,7 @@ class data():
         self.data = self.data.reset_index(drop=True)
         self.labels = self.labels.reset_index(drop=True)
     
-    def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean'):
+    def generate_graphs(self, num_neighbors, mode='distance', metric='euclidean', data_type='whole'):
         '''
         Generate the k-NN graph using FAISS
         
@@ -104,8 +120,11 @@ class data():
             mode (str): 'distance' for distance values, 'connectivity' for binary connectivity.
             metric (str): Metric to use for distance ('euclidean' is assumed here).
         '''
+        if data_type == 'whole':
         # Ensure the data is in dense format (FAISS requires dense arrays)
-        data_matrix = np.array(self.data, dtype=np.float32)
+            data_matrix = np.array(self.data, dtype=np.float32)
+        elif data_type == 'stratified':
+            data_matrix = np.array(self.stratifed_data, dtype=np.float32)
 
         # Initialize FAISS index for L2 distance (Euclidean)
         if metric == 'euclidean':
