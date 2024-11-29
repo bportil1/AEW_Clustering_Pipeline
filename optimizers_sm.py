@@ -94,11 +94,11 @@ class SimulatedAnnealingOptimizer:
             alpha = self.acceptance_probability_computation(curr_energy, new_energy)
             print("Potential New Position Acceptance Probability: ", alpha)
 
-            if new_energy < curr_energy and np.random.rand() < alpha:
+            if new_energy < curr_energy :
                 curr_gamma = new_position
                 curr_energy = new_energy
                 update_ctr = 0
-            elif np.random.rand() > alpha:
+            elif np.random.rand() > (1-alpha):
                 curr_gamma = new_position
                 curr_energy = new_energy
                 update_ctr = 0
@@ -235,6 +235,7 @@ class SwarmBasedAnnealingOptimizer:
     def update_position(self, particle_idx, eta, curr_adj_matrix):
         '''
         Update particle position
+        returning nans maybe values too big, props if fitness gets rdiculous big
         '''
         gradient = self.gradient_function(curr_adj_matrix, self.positions[particle_idx])
         new_position = self.positions[particle_idx] - (self.h * gradient * self.personal_best_fitness[particle_idx]) + (np.sqrt(2 * self.h * self.masses[particle_idx]) * eta)

@@ -98,10 +98,18 @@ if __name__ == '__main__':
 
         data_obj.generate_graphs(100, rep, data_type='stratified')
 
-        aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.stratified_labels[rep], rep)
- 
+        aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.data, data_obj.stratified_labels[rep], rep, 'var')
+
         #aew_obj.generate_optimal_edge_weights(1)
         aew_obj.generate_optimal_edge_weights(1000)
+
+        aew_obj.data = data_obj.data
+
+        data_obj.generate_graphs(100, data_type="whole")
+
+        aew_obj.similarity_matrix = aew_obj.correct_similarity_matrix_diag(data_obj.graph)
+
+        aew_obj.similarity_matrix = aew_obj.generate_edge_weights(aew_obj.gamma)
 
         #error_str = diag_base + str(aew_obj.final_error) + "\n"
 

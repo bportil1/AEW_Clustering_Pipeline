@@ -32,11 +32,10 @@ class data:
         self.class_labels = {'defects': {'no': 0, 'yes':1}}
         #self.similarity_matrix = None
         if graph_type == 'stratified':
-            self.stratified_data, self.stratified_labels = self.stratified_data(.8, 5)
+            self.stratified_data, self.stratified_labels = self.stratified_data(.4, 5)
             #print(self.stratified_data)
             #print(self.stratified_labels)
         #self.stratified_graph = None
-
         self.graph = None
 
     def stratified_data(self, sample_size, splits):
@@ -122,7 +121,7 @@ class data:
         labels = labels.reset_index(drop=True)
         return data, labels
 
-    def generate_graphs(self, num_neighbors, rep, mode='distance', metric='euclidean', data_type='whole'):
+    def generate_graphs(self, num_neighbors, rep=None, mode='distance', metric='euclidean', data_type='whole'):
         '''
         Generate the k-NN graph using FAISS
         
@@ -134,10 +133,16 @@ class data:
         if data_type == 'whole':
         # Ensure the data is in dense format (FAISS requires dense arrays)
             data_matrix = np.array(self.data, dtype=np.float32)
+            x_len = self.data.shape[0]
+            y_len = self.data.shape[0]
         elif data_type == 'stratified':
             #print(self.stratified_data)
-
             data_matrix = np.array(self.stratified_data[rep], dtype=np.float32)
+            x_len = self.stratified_data[rep].shape[0]
+            y_len = self.stratified_data[rep].shape[0]
+
+        print("X len: ", x_len)
+        print("Y len: ", y_len) 
 
         # Initialize FAISS index for L2 distance (Euclidean)
         if metric == 'euclidean':
@@ -155,13 +160,13 @@ class data:
         # Create an empty sparse matrix to hold the graph data
         if mode == 'distance':
             # Use the distances to create the graph (edges weighted by distance)
-            graph_data = np.zeros((len(self.stratified_data[rep]), len(self.stratified_data[rep])))
+            graph_data = np.zeros((x_len, y_len))
             for i in range(len(indices)):
                 for j in range(num_neighbors):
                     graph_data[i, indices[i, j]] = distances[i, j]
         elif mode == 'connectivity':
             # Use binary connectivity (1 if neighbor, 0 otherwise)
-            graph_data = np.zeros((len(self.stratified_data[rep]), len(self.stratified_data[rep])))
+            graph_data = np.zeros((x_len, y_len))
             for i in range(len(indices)):
                 for j in range(num_neighbors):
                     graph_data[i, indices[i, j]] = 1

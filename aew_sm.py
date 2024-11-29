@@ -11,7 +11,7 @@ from optimizers_sm import *
 warnings.filterwarnings("ignore")
 
 class aew():
-    def __init__(self, similarity_matrix, data, labels, test_rep, gamma_init=None):
+    def __init__(self, similarity_matrix, data, comp_data, labels, test_rep, gamma_init=None):
         '''
         Initialize class attributes with sparse matrix handling
         '''
@@ -140,7 +140,7 @@ class aew():
         elif optimizer == 'particle_swarm':
             opt_obj = ParticleSwarmOptimizer(self.similarity_matrix, self.gamma, self.objective_function,  self.generate_edge_weights, 3, len(self.gamma), num_iterations)
         elif optimizer == 'swarm_based_annealing':
-            opt_obj = SwarmBasedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.gradient_function, self.generate_edge_weights, 3, len(self.gamma), num_iterations)
+            opt_obj = SwarmBasedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.gradient_function, self.generate_edge_weights, 5, len(self.gamma), num_iterations)
         
         self.gamma = opt_obj.optimize()
         print("Optimized Gamma: ", self.gamma)
@@ -152,7 +152,8 @@ class aew():
         print("Generating Optimal Edge Weights")
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
         self.optimize_gamma('simulated_annealing', num_iterations)
-        self.similarity_matrix = self.generate_edge_weights(self.gamma)
+        #self.optimize_gamma('swarm_based_annealing', 1)
+        #self.similarity_matrix = self.generate_edge_weights(self.gamma)
 
     def edge_weight_computation(self, section, gamma):
         '''
@@ -170,7 +171,8 @@ class aew():
         Parallelization of edge weight computation using sparse matrix operations
         '''
         print("Generating Edge Weights")
-        print("Data Size: ", self.similarity_matrix.shape)
+        print("Data Size: ", self.data.shape)
+        print("Graph Size: ", self.similarity_matrix.shape)
         curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
         mm_file = './mmap_file'
         curr_sim_matr = np.memmap(mm_file + 'curr_sim_matr', dtype='float32', mode='w+', shape=curr_sim_matr.shape)
