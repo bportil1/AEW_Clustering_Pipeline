@@ -111,7 +111,7 @@ class SimulatedAnnealingOptimizer:
             print("Current Error: ", curr_energy)
             print("Current Temperature: ", self.temperature)
 
-            if self.temperature < self.min_temp:
+            if self.temperature < self.min_temp or update_ctr > 20:
                 break
 
         print("Final Error: ", curr_energy)
