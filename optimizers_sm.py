@@ -346,7 +346,7 @@ class HdFireflySimulatedAnnealingOptimizer:
         self.pop_alpha = self.pop_alpha[indices]
 
     def finder_tracker_assignments(self, tol=.5):
-        print("Reassigning Finder Trackers")
+        print("Reassigning Finder/Trackers Points")
         for idx1 in range(self.pop_test):
             for idx2 in range(self.pop_test):
                 if idx1 != idx2:
@@ -428,11 +428,12 @@ class HdFireflySimulatedAnnealingOptimizer:
                         nonincreasing_alpha_counter += 1
                     else:
                         nonincreasing_alpha_counter = 0
-
                     last_alpha = alpha_avg
                     print("Current NonIncreasing Alpha Counter: ", nonincreasing_alpha_counter)
             self.finder_tracker_assignments()
             hdfa_ctr += 1
+            print('HDFA Iteration: ', hdfa_ctr)
+            print('Steps Without Increasing Alpha: ', nonincreasing_alpha_counter)
         #print(in_min_region, " ", min_region, " ", min_reg_fitness)
 
         _, min_position, lowest_fitness = self.bsp_tree.find_lowest_fitness_region()
