@@ -282,7 +282,7 @@ class SwarmBasedAnnealingOptimizer:
         return self.global_best_position
 
 class HdFireflySimulatedAnnealingOptimizer:
-    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=100, hdfa_iterations=5, gamma=1, alpha=.2): 
+    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=25, hdfa_iterations=5, gamma=1, alpha=.2): 
         self.similarity_matrix = similarity_matrix
         self.spread_gamma = spread_gamma
         self.objective_computation = objective_function
@@ -430,7 +430,7 @@ class HdFireflySimulatedAnnealingOptimizer:
                         nonincreasing_alpha_counter = 0
 
                     last_alpha = alpha_avg
-                    print("Current NonIncreasing Alpha Counter: ", nonincreasin_alpha_counter)
+                    print("Current NonIncreasing Alpha Counter: ", nonincreasing_alpha_counter)
             self.finder_tracker_assignments()
             hdfa_ctr += 1
         #print(in_min_region, " ", min_region, " ", min_reg_fitness)
