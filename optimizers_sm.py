@@ -78,6 +78,7 @@ class SimulatedAnnealingOptimizer:
         '''
         Optimization function
         '''
+        print("Beggining Simulated Annealing Optimization")
         update_ctr = 0
         curr_gamma = self.gamma
         curr_energy = self.objective_function(self.similarity_matrix, self.gamma)
@@ -281,7 +282,7 @@ class SwarmBasedAnnealingOptimizer:
         return self.global_best_position
 
 class HdFireflySimulatedAnnealingOptimizer:
-    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=30, hdfa_iterations=5, gamma=1, alpha=.2): 
+    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=100, hdfa_iterations=5, gamma=1, alpha=.2): 
         self.similarity_matrix = similarity_matrix
         self.spread_gamma = spread_gamma
         self.objective_computation = objective_function
@@ -345,6 +346,7 @@ class HdFireflySimulatedAnnealingOptimizer:
         self.pop_alpha = self.pop_alpha[indices]
 
     def finder_tracker_assignments(self, tol=.5):
+        print("Reassigning Finder Trackers")
         for idx1 in range(self.pop_test):
             for idx2 in range(self.pop_test):
                 if idx1 != idx2:
@@ -373,9 +375,12 @@ class HdFireflySimulatedAnnealingOptimizer:
                             self.pop_fitness = np.concatenate((best_forty_fitness, bottom_sixty_fitness)).ravel()
                             self.pop_attractiveness = np.concatenate((best_forty_attractiveness, bottom_sixty_attractiveness)).ravel()
                             self.pop_alpha = np.concatenate((best_forty_alpha, bottom_sixty_alpha))
+                            print("Completed Finder/Tracker Reassignments")
                             return 0
-        
+        print("No Reassignments Needed")
+
     def optimize(self):
+        print("Beggining Hd-Firefly-SA Optimization")
         last_alpha = float('inf')
         maturity_condition = True
         nonincreasing_alpha_counter = 0
@@ -384,6 +389,7 @@ class HdFireflySimulatedAnnealingOptimizer:
         new_fitness = float('inf')
         curr_sim_matr = self.similarity_matrix
         while hdfa_ctr < self.hdfa_iterations:
+            print("Current HdFa Iteration: ", hdfa_ctr)
             for idx1 in range(self.pop_test):
                 for idx2 in range(self.pop_test):
                     if self.pop_fitness[idx1] < self.pop_fitness[idx2]:
@@ -424,19 +430,22 @@ class HdFireflySimulatedAnnealingOptimizer:
                         nonincreasing_alpha_counter = 0
 
                     last_alpha = alpha_avg
+                    print("Current NonIncreasing Alpha Counter: ", nonincreasin_alpha_counter)
             self.finder_tracker_assignments()
             hdfa_ctr += 1
         #print(in_min_region, " ", min_region, " ", min_reg_fitness)
 
         _, min_position, lowest_fitness = self.bsp_tree.find_lowest_fitness_region()
 
-        print("Final Min Position: ", min_position[0])
-
-        print("Final Error: ", lowest_fitness)
+        print("Final Hd-FF Min Position: ", min_position[0])
+        print("Final Hd-FF Error: ", lowest_fitness)
 
         sa = SimulatedAnnealingOptimizer(self.similarity_matrix,  min_position[0], self.generate_edge_weights, self.objective_computation, temperature=10, cooling_rate = .90)
         
         min_pt, min_fitness, path = sa.optimize()
+
+        print("Final SA Min Position: ", min_pt)
+        print("final SA Error: ", min_fitness)
 
         return min_pt, min_fitness, path
 
