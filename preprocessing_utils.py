@@ -32,7 +32,7 @@ class data:
         self.class_labels = {'defects': {'no': 0, 'yes':1}}
         #self.similarity_matrix = None
         if graph_type == 'stratified':
-            self.stratified_data, self.stratified_labels = self.stratified_data(.4, 5)
+            self.stratified_data, self.stratified_labels = self.stratified_data(.95, 25)
             #print(self.stratified_data)
             #print(self.stratified_labels)
         #self.stratified_graph = None
@@ -53,6 +53,8 @@ class data:
     
             strat_data[idx] = strat_data[idx].reset_index(drop=True)
             strat_labels[idx] = strat_labels[idx].reset_index(drop=True)
+
+        #print(len(strat_data))
 
         return strat_data, strat_labels
 

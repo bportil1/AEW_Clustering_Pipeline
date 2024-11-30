@@ -1,6 +1,6 @@
-
 import numpy as np
 import scipy.sparse as sp
+from bsp import *
 
 class AdamOptimizer:
     def __init__(self, similarity_matrix, gamma, update_sim_matr, objective_function, gradient_function, num_iterations=100, lambda_v=.99, lambda_s=.9999, epsilon=1e-8, alpha=10):
@@ -280,4 +280,163 @@ class SwarmBasedAnnealingOptimizer:
         print("Completed Optimization")
         return self.global_best_position
 
+class HdFireflySimulatedAnnealingOptimizer:
+    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=30, hdfa_iterations=5, gamma=1, alpha=.2): 
+        self.similarity_matrix = similarity_matrix
+        self.spread_gamma = spread_gamma
+        self.objective_computation = objective_function
+        self.generate_edge_weights = update_sim_matr
+
+        self.pop_test = pop_test 
+        self.dimensions = dimensions
+        self.hdfa_iterations = hdfa_iterations
+        self.alpha = alpha
+        self.gamma = gamma
+
+        self.pop_positions = self.initialize_positions('initial')
+        self.pop_attractiveness = np.ones(self.pop_test)
+        self.pop_fitness = np.zeros(self.pop_test)
+    
+        self.pop_alpha = np.zeros(self.pop_test)
+
+        self.initialize_fitness()
+
+        self.bsp_tree = self.initialize_bsp()
+    
+    def initialize_bsp(self):
+        bsp = BSP(self.dimensions)
+        bsp.build_tree(self.pop_positions, self.pop_fitness)
+        return bsp
+
+    def initialize_fitness(self):
+        for idx in range(self.pop_test):
+            curr_sim_matr = self.generate_edge_weights(self.pop_positions[idx])
+            self.pop_fitness[idx] = self.objective_computation(curr_sim_matr, self.pop_positions[idx])
+
+    def initialize_positions(self, stage):
+        if stage == 'initial':
+            return np.random.rand(self.pop_test, self.dimensions)
+        elif stage == 'finder_tracker':
+            return self.finder_tracker_assignments()    
+    
+    def l2_norm(self, ff_idx_1, ff_idx_2):
+        return np.sqrt(np.sum((self.pop_positions[ff_idx_1] - self.pop_positions[ff_idx_2])**2))
+
+    def compute_attractiveness(self, ff_idx_1, ff_idx_2):
+        norm = self.l2_norm(ff_idx_1, ff_idx_2)**2
+        return self.pop_attractiveness[ff_idx_1] * np.exp(-self.gamma*norm)
+
+    def update_position(self, new_attr, ff_idx_1, ff_idx_2):
+        #attractiveness = self.compute_attractiveness(ff_idx_1, ff_idx_2)
+        return self.pop_positions[ff_idx_1] + new_attr * (self.pop_positions[ff_idx_2] - self.pop_positions[ff_idx_1]) + self.alpha*(np.random.rand()-.5)
+
+    #def update_fitness(self, curr_sim_matr, ff_idx_1):
+    #    self.pop_fitness[ff_idx_1] = self.objective_computation(curr_sim_matr, self.pop_positions[ff_idx_1])
+        
+    def grow_bsp(self, points, fitness_scores):
+        bsp = BSP(self.bsp_tree, self.dimensions)
+        self.bsp_tree = bsp.grow_tree(points, fitness_scores)
+
+    def sort_ff_data(self):
+        indices = np.argsort(self.pop_fitness)
+        self.pop_fitness = self.pop_fitness[indices]
+        self.pop_positions = self.pop_positions[indices][:]
+        self.pop_attractiveness = self.pop_attractiveness[indices]
+        self.pop_alpha = self.pop_alpha[indices]
+
+    def finder_tracker_assignments(self, tol=.5):
+        for idx1 in range(self.pop_test):
+            for idx2 in range(self.pop_test):
+                if idx1 != idx2:
+                    same_region = self.bsp_tree.same_region_check(self.pop_positions[idx1], self.pop_positions[idx2], tol)
+                    if same_region:
+                        dist = np.linalg.norm(self.pop_positions[idx1] - self.pop_positions[idx2])
+                        if dist < tol:
+                            self.sort_ff_data()
+                            top_forty_percent = int(np.ceil(self.pop_test*.4))
+                            bottom_sixty_percent = int(np.floor(self.pop_test*.6))
+                            best_forty_positions = self.pop_positions[:top_forty_percent]
+                            best_forty_fitness = self.pop_fitness[:top_forty_percent]
+                            best_forty_attractiveness = self.pop_attractiveness[:top_forty_percent] 
+                            best_forty_alpha = self.pop_alpha[:top_forty_percent]
+                            bottom_sixty_positions = np.random.rand(np.floor(bottom_sixty_percent), self.dimensions)
+                            bottom_sixty_attractiveness = np.ones(bottom_sixty_percent)
+                            bottom_sixty_fitness = np.zeros(bottom_sixty_percent)
+                            bottom_sixty_alpha = np.zeros(bottom_sixty_percent)                        
+    
+                            for idx in range(bottom_sixty_percent):
+
+                                curr_sim_matr = self.generate_edge_weights(bottom_sixty_positions[idx])
+
+                                self.pop_fitness[idx] = self.objective_computation(curr_sim_matr, bottom_sixty_positions[idx])
+                            self.pop_positions = np.concatenate((best_forty_positions, bottom_sixty_positions))
+                            self.pop_fitness = np.concatenate((best_forty_fitness, bottom_sixty_fitness)).ravel()
+                            self.pop_attractiveness = np.concatenate((best_forty_attractiveness, bottom_sixty_attractiveness)).ravel()
+                            self.pop_alpha = np.concatenate((best_forty_alpha, bottom_sixty_alpha))
+                            return 0
+        
+    def optimize(self):
+        last_alpha = float('inf')
+        maturity_condition = True
+        nonincreasing_alpha_counter = 0
+        hdfa_ctr = 0
+        min_reg_fitness = float('inf')
+        new_fitness = float('inf')
+        curr_sim_matr = self.similarity_matrix
+        while hdfa_ctr < self.hdfa_iterations:
+            for idx1 in range(self.pop_test):
+                for idx2 in range(self.pop_test):
+                    if self.pop_fitness[idx1] < self.pop_fitness[idx2]:
+                        new_attr = self.compute_attractiveness(idx1, idx2)
+                        new_position = self.update_position(new_attr, idx1, idx2)
+                        curr_sim_matr = self.generate_edge_weights(new_position)
+                        in_min_region, min_region, min_reg_fitness, new_graph, min_node, region_points = find_region_with_lowest_fitness(curr_sim_matr, self.objective_computation, self.bsp_tree, new_attr, new_position, self.dimensions)
+                        new_fitness = self.objective_computation(curr_sim_matr, min_region)
+                        if new_fitness < self.pop_fitness[idx1]:
+                            self.pop_fitness[idx1] = new_fitness
+                            self.pop_positions[idx1] = new_position
+                        print("Potential New Position: ", new_position)
+                        print("Potential New Fitness: ", new_fitness)
+                
+                if maturity_condition:
+                    #if min_reg_fitness == float('inf'):
+                    #   min_reg_fitness = self.pop_fitness[idx1]
+                    #if new_fitness == float('inf'):
+                    #   new_fitness = 0
+                    if min_reg_fitness == float('inf') or new_fitness == float('inf'):
+                        self.pop_alpha[idx1] = 1
+                        #print("min reg_fitness :", min_reg_fitness)
+                        #print("new_fitness: ", new_fitness)
+                    else:
+                        self.pop_alpha[idx1] = np.abs(min_reg_fitness - new_fitness)
+                    #print("New pop alpha agent ", idx1,  " ", self.pop_alpha[idx1])
+                    if idx1 > 1:
+                        alpha_avg = np.average(self.pop_alpha[:idx1])
+                        #print("New Alpha AVG: ", alpha_avg)
+                    else:
+                        alpha_avg = 1
+                    print("Current Alpha Average: ", alpha_avg)
+                    if alpha_avg <= 0 or nonincreasing_alpha_counter >= 1000:
+                        break
+                    if last_alpha > alpha_avg:  
+                        nonincreasing_alpha_counter += 1
+                    else:
+                        nonincreasing_alpha_counter = 0
+
+                    last_alpha = alpha_avg
+            self.finder_tracker_assignments()
+            hdfa_ctr += 1
+        #print(in_min_region, " ", min_region, " ", min_reg_fitness)
+
+        _, min_position, lowest_fitness = self.bsp_tree.find_lowest_fitness_region()
+
+        print("Final Min Position: ", min_position[0])
+
+        print("Final Error: ", lowest_fitness)
+
+        sa = SimulatedAnnealingOptimizer(self.similarity_matrix,  min_position[0], self.generate_edge_weights, self.objective_computation, temperature=10, cooling_rate = .90)
+        
+        min_pt, min_fitness, path = sa.optimize()
+
+        return min_pt, min_fitness, path
 

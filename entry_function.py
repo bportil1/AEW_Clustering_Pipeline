@@ -89,20 +89,29 @@ if __name__ == '__main__':
     #data_obj.generate_graphs(100)
 
     for rep in range(5):
-
+        
         diag_base = str(rep) + "," 
 
         dir_name = 'results_' + str(rep)  
 
         os.makedirs(str('./'+dir_name+'/plain_data/'), exist_ok=True)
 
-        data_obj.generate_graphs(100, rep, data_type='stratified')
+        for strat_idx in range(25):
 
-        aew_obj = aew(data_obj.graph, data_obj.stratified_data[rep], data_obj.data, data_obj.stratified_labels[rep], rep, 'var')
+            data_obj.generate_graphs(100, strat_idx, data_type='stratified')
 
-        #aew_obj.generate_optimal_edge_weights(1)
-        aew_obj.generate_optimal_edge_weights(1000)
+            aew_obj = aew(data_obj.graph, data_obj.stratified_data[strat_idx], data_obj.data, data_obj.stratified_labels[strat_idx], strat_idx, 'var')
 
+            if strat_idx > 0:
+                aew_obj.gamma = curr_gamma
+
+            #aew_obj.generate_optimal_edge_weights(1)
+            #gamma set internally here
+            aew_obj.generate_optimal_edge_weights(1000)
+            
+            curr_gamma = aew_obj.gamma
+
+        ### Final sim matrix
         aew_obj.data = data_obj.data
 
         data_obj.generate_graphs(100, data_type="whole")

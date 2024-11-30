@@ -133,6 +133,7 @@ class aew():
         return np.sum(gradients, axis=0)
 
     def optimize_gamma(self, optimizer, num_iterations=100):
+        print("Beggining Optimization: ", optimizer)
         if optimizer == 'adam':
             opt_obj = AdamOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, self.gradient_function, num_iterations)
         elif optimizer == 'simulated_annealing':
@@ -141,7 +142,9 @@ class aew():
             opt_obj = ParticleSwarmOptimizer(self.similarity_matrix, self.gamma, self.objective_function,  self.generate_edge_weights, 3, len(self.gamma), num_iterations)
         elif optimizer == 'swarm_based_annealing':
             opt_obj = SwarmBasedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.gradient_function, self.generate_edge_weights, 5, len(self.gamma), num_iterations)
-        
+        elif optimizer == 'hd_firefly_annealing':
+            opt_obj = HdFireflySimulatedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, len(self.gamma))
+
         self.gamma = opt_obj.optimize()
         print("Optimized Gamma: ", self.gamma)
 
@@ -151,8 +154,9 @@ class aew():
         '''
         print("Generating Optimal Edge Weights")
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
-        self.optimize_gamma('simulated_annealing', num_iterations)
+        #self.optimize_gamma('simulated_annealing', num_iterations)
         #self.optimize_gamma('swarm_based_annealing', 1)
+        self.optimize_gamma('hd_firefly_annealing')
         #self.similarity_matrix = self.generate_edge_weights(self.gamma)
 
     def edge_weight_computation(self, section, gamma):
