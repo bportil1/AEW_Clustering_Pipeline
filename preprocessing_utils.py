@@ -143,9 +143,6 @@ class data:
             x_len = self.stratified_data[rep].shape[0]
             y_len = self.stratified_data[rep].shape[0]
 
-        print("X len: ", x_len)
-        print("Y len: ", y_len) 
-
         # Initialize FAISS index for L2 distance (Euclidean)
         if metric == 'euclidean':
             index = faiss.IndexFlatL2(data_matrix.shape[1])

@@ -113,6 +113,7 @@ class SimulatedAnnealingOptimizer:
             print("Current Temperature: ", self.temperature)
 
             if self.temperature < self.min_temp or update_ctr > 20:
+                print("Early Convergence, Breaking")
                 break
 
         print("Final Error: ", curr_energy)
@@ -281,8 +282,10 @@ class SwarmBasedAnnealingOptimizer:
         print("Completed Optimization")
         return self.global_best_position
 
+
+####CRASHING ON ONE HDFA ITERATION AT SEARCH TREE FOR MIN - THINK ITS EMPTY TREE
 class HdFireflySimulatedAnnealingOptimizer:
-    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=20, hdfa_iterations=5, gamma=1, alpha=.2): 
+    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=100, hdfa_iterations=5, gamma=1, alpha=.2): 
         self.similarity_matrix = similarity_matrix
         self.spread_gamma = spread_gamma
         self.objective_computation = objective_function
@@ -311,6 +314,7 @@ class HdFireflySimulatedAnnealingOptimizer:
 
     def initialize_fitness(self):
         for idx in range(self.pop_test):
+            print("Initializing Firefly: ", idx)
             curr_sim_matr = self.generate_edge_weights(self.pop_positions[idx])
             self.pop_fitness[idx] = self.objective_computation(curr_sim_matr, self.pop_positions[idx])
 
@@ -446,7 +450,7 @@ class HdFireflySimulatedAnnealingOptimizer:
         min_pt, min_fitness= sa.optimize()
 
         print("Final SA Min Position: ", min_pt)
-        print("final SA Error: ", min_fitness)
+        print("Final SA Error: ", min_fitness)
 
-        return min_pt, min_fitness, path
+        return min_pt
 

@@ -95,8 +95,10 @@ if __name__ == '__main__':
         dir_name = 'results_' + str(rep)  
 
         os.makedirs(str('./'+dir_name+'/plain_data/'), exist_ok=True)
-
+        
         for strat_idx in range(25):
+
+            print("Stratified Section: ", strat_idx)
 
             data_obj.generate_graphs(100, strat_idx, data_type='stratified')
 
@@ -110,7 +112,7 @@ if __name__ == '__main__':
             aew_obj.generate_optimal_edge_weights(1000)
             
             curr_gamma = aew_obj.gamma
-
+        
         ### Final sim matrix
         aew_obj.data = data_obj.data
 
@@ -136,7 +138,7 @@ if __name__ == '__main__':
 
         ###### Eigenvector Data Test
 
-        clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.eigenvectors, labels=aew_obj.labels, path_name = str("./"+dir_name+"/"), name_append="eigenvector_3d_data", workers=-1)
+        clustering_obj = clustering(base_data = data_obj.data.to_numpy(), data=aew_obj.eigenvectors, labels=data_obj.labels, path_name = str("./"+dir_name+"/"), name_append="eigenvector_3d_data", workers=-1)
 
         clustering_obj.generate_spectral()    
 

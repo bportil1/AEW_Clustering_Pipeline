@@ -258,7 +258,9 @@ class BSP:
 
         def traverse_bsp(point, current_node):
 
-            while current_node is not None:
+            while current_node is not None and current_node != {}:
+                print("In same_region_check")
+                #print("Current Node: " , self.tree.nodes[current_node])
                 # Get the plane defining the current node
                 plane = self.tree.nodes[current_node]["plane"]
                 normal = plane[1]

@@ -216,6 +216,7 @@ class aew():
         '''
         Cast similarity matrix to lower dimensional representation using PCA
         '''
+        print("Computing Eigenvectors")
         pca = PCA()
         if num_components == 'lowest_var':
             #pca.fit(self.similarity_matrix.toarray())  # Convert sparse to dense for PCA fitting
@@ -228,3 +229,4 @@ class aew():
         pca_result = pca.fit_transform(np.asarray(self.similarity_matrix))
         pca_normalized = self.unit_normalization(sp.csr_matrix(pca_result))
         self.eigenvectors = pca_normalized.toarray()
+        print("Eigenvector Computation Complete")
