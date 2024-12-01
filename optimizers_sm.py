@@ -117,7 +117,7 @@ class SimulatedAnnealingOptimizer:
 
         print("Final Error: ", curr_energy)
         print("Final Gamma: ", curr_gamma)
-        return curr_gamma
+        return curr_gamma, curr_energy
 
     def solution_transition(self, curr_gamma):
         '''
@@ -282,7 +282,7 @@ class SwarmBasedAnnealingOptimizer:
         return self.global_best_position
 
 class HdFireflySimulatedAnnealingOptimizer:
-    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=5, hdfa_iterations=5, gamma=1, alpha=.2): 
+    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=20, hdfa_iterations=5, gamma=1, alpha=.2): 
         self.similarity_matrix = similarity_matrix
         self.spread_gamma = spread_gamma
         self.objective_computation = objective_function
@@ -443,7 +443,7 @@ class HdFireflySimulatedAnnealingOptimizer:
 
         sa = SimulatedAnnealingOptimizer(self.similarity_matrix,  min_position[0], self.generate_edge_weights, self.objective_computation, temperature=5, cooling_rate = .90)
         
-        min_pt, min_fitness, path = sa.optimize()
+        min_pt, min_fitness= sa.optimize()
 
         print("Final SA Min Position: ", min_pt)
         print("final SA Error: ", min_fitness)
