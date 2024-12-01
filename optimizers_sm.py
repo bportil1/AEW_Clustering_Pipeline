@@ -282,7 +282,7 @@ class SwarmBasedAnnealingOptimizer:
         return self.global_best_position
 
 class HdFireflySimulatedAnnealingOptimizer:
-    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=25, hdfa_iterations=5, gamma=1, alpha=.2): 
+    def __init__(self, similarity_matrix, spread_gamma, update_sim_matr, objective_function, dimensions, pop_test=5, hdfa_iterations=5, gamma=1, alpha=.2): 
         self.similarity_matrix = similarity_matrix
         self.spread_gamma = spread_gamma
         self.objective_computation = objective_function
@@ -361,7 +361,7 @@ class HdFireflySimulatedAnnealingOptimizer:
                             best_forty_fitness = self.pop_fitness[:top_forty_percent]
                             best_forty_attractiveness = self.pop_attractiveness[:top_forty_percent] 
                             best_forty_alpha = self.pop_alpha[:top_forty_percent]
-                            bottom_sixty_positions = np.random.rand(np.floor(bottom_sixty_percent), self.dimensions)
+                            bottom_sixty_positions = np.random.rand(int(np.floor(bottom_sixty_percent)), self.dimensions)
                             bottom_sixty_attractiveness = np.ones(bottom_sixty_percent)
                             bottom_sixty_fitness = np.zeros(bottom_sixty_percent)
                             bottom_sixty_alpha = np.zeros(bottom_sixty_percent)                        
