@@ -61,7 +61,7 @@ class AdamOptimizer:
         return curr_gamma
 
 class SimulatedAnnealingOptimizer:
-    def __init__(self, similarity_matrix, gamma, update_sim_matr, objective_function, num_iterations, temperature=10, min_temp=.001, cooling_rate=.9):
+    def __init__(self, similarity_matrix, gamma, update_sim_matr, objective_function, num_iterations=1000, temperature=10, min_temp=.001, cooling_rate=.9):
         '''
         Simulated Annealing Optimizer
         '''
@@ -441,7 +441,7 @@ class HdFireflySimulatedAnnealingOptimizer:
         print("Final Hd-FF Min Position: ", min_position[0])
         print("Final Hd-FF Error: ", lowest_fitness)
 
-        sa = SimulatedAnnealingOptimizer(self.similarity_matrix,  min_position[0], self.generate_edge_weights, self.objective_computation, temperature=10, cooling_rate = .90)
+        sa = SimulatedAnnealingOptimizer(self.similarity_matrix,  min_position[0], self.generate_edge_weights, self.objective_computation, temperature=5, cooling_rate = .90)
         
         min_pt, min_fitness, path = sa.optimize()
 
