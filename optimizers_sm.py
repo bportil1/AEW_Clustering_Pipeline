@@ -48,10 +48,11 @@ class AdamOptimizer:
 
             print("Current Gamma: ", curr_gamma)
             curr_gamma = curr_gamma - (self.alpha * (corrected_v)) / (self.epsilon + np.sqrt(corrected_s))
+            print("Updated Gamma: ", curr_gamma)
+
             v_curr = v_next
             s_curr = s_next
 
-            print("Next Gamma: ", curr_gamma)
 
             if curr_error <= min_error:
                 min_error = curr_error
@@ -205,6 +206,8 @@ class ParticleSwarmOptimizer:
 
         return self.global_best_position
 
+
+##### THIS NEEDS TO BE THOROUGHLY UPDATED
 class SwarmBasedAnnealingOptimizer:
     def __init__(self, similarity_matrix, gamma, objective_function, gradient_function, update_sim_matr, num_particles, dimensions, max_iter, h=0.95):
         '''
@@ -409,20 +412,12 @@ class HdFireflySimulatedAnnealingOptimizer:
                         print("Potential New Fitness: ", new_fitness)
                 
                 if maturity_condition:
-                    #if min_reg_fitness == float('inf'):
-                    #   min_reg_fitness = self.pop_fitness[idx1]
-                    #if new_fitness == float('inf'):
-                    #   new_fitness = 0
                     if min_reg_fitness == float('inf') or new_fitness == float('inf'):
                         self.pop_alpha[idx1] = 1
-                        #print("min reg_fitness :", min_reg_fitness)
-                        #print("new_fitness: ", new_fitness)
                     else:
                         self.pop_alpha[idx1] = np.abs(min_reg_fitness - new_fitness)
-                    #print("New pop alpha agent ", idx1,  " ", self.pop_alpha[idx1])
                     if idx1 > 1:
                         alpha_avg = np.average(self.pop_alpha[:idx1])
-                        #print("New Alpha AVG: ", alpha_avg)
                     else:
                         alpha_avg = 1
                     print("Current Alpha Average: ", alpha_avg)
