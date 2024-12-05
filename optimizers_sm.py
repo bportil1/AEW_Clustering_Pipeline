@@ -118,7 +118,7 @@ class SimulatedAnnealingOptimizer:
 
         print("Final Error: ", curr_energy)
         print("Final Gamma: ", curr_gamma)
-        return curr_gamma, curr_energy
+        return curr_gamma
 
     def solution_transition(self, curr_gamma):
         '''

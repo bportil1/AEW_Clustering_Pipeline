@@ -11,7 +11,7 @@ from optimizers_sm import *
 warnings.filterwarnings("ignore")
 
 class aew():
-    def __init__(self, similarity_matrix, data, comp_data, labels, test_rep, gamma_init=None):
+    def __init__(self, similarity_matrix, data, comp_data, labels, test_rep=None, gamma_init=None):
         '''
         Initialize class attributes with sparse matrix handling
         '''
@@ -143,7 +143,7 @@ class aew():
         elif optimizer == 'swarm_based_annealing':
             opt_obj = SwarmBasedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.objective_function, self.gradient_function, self.generate_edge_weights, 5, len(self.gamma), num_iterations)
         elif optimizer == 'hd_firefly_annealing':
-            opt_obj = HdFireflySimulatedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, len(self.gamma))
+            opt_obj = HdFireflySimulatedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, len(self.gamma), 50)
 
         self.gamma = opt_obj.optimize()
         print("Optimized Gamma: ", self.gamma)
@@ -154,9 +154,9 @@ class aew():
         '''
         print("Generating Optimal Edge Weights")
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
-        #self.optimize_gamma('simulated_annealing', num_iterations)
+        self.optimize_gamma('simulated_annealing', num_iterations)
         #self.optimize_gamma('swarm_based_annealing', 1)
-        self.optimize_gamma('hd_firefly_annealing')
+        #self.optimize_gamma('hd_firefly_annealing')
         #self.similarity_matrix = self.generate_edge_weights(self.gamma)
 
     def edge_weight_computation(self, section, gamma):
@@ -225,8 +225,11 @@ class aew():
             cum_variance = expl_var.cumsum()
             num_components = (cum_variance <= min_variance).sum() + 1
         pca = PCA(n_components=num_components)
-        #pca_result = pca.fit_transform(self.similarity_matrix.toarray())
-        pca_result = pca.fit_transform(np.asarray(self.similarity_matrix))
+        pca_result = pca.fit_transform(self.similarity_matrix.toarray())
+        #pca_result = pca.fit_transform(np.asarray(self.similarity_matrix))
         pca_normalized = self.unit_normalization(sp.csr_matrix(pca_result))
-        self.eigenvectors = pca_normalized.toarray()
+        #print(type(pca_normalized))
+        self.eigenvectors = pd.DataFrame(pca_normalized.toarray())
+        #print(self.eigenvectors)
+        #self.eigenvectors = pca_normalized.toarray()
         print("Eigenvector Computation Complete")
