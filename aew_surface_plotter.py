@@ -6,14 +6,10 @@ import math
 import itertools
 from multiprocessing import Pool
 from multiprocessing import cpu_count
-
 from preprocessing_utils import *
 from aew_sm import *
-
 import plotly.express as px
 import plotly.graph_objects as go
-
-
 
 # Define the class that contains the objective computation function
 class OptimizationFunction:
@@ -94,13 +90,14 @@ def plot_error_surface(aew_obj):
                                       highlightcolor='limegreen', project_z=True))
 
     fig.update_layout(
-            title = 'Error Surface',
+            title = 'Spread Parameter Error Surface',
             scene=dict(
             xaxis=dict(range=[X.min(), X.max()]),
             yaxis=dict(range=[Y.min(), Y.max()]),
             zaxis=dict(title="Error", range=[Z.min(), Z.max()])
             )
     )
+
     fig.write_html("error_surface_cm1.html")
     fig.show()
 

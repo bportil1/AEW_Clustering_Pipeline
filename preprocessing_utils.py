@@ -27,9 +27,9 @@ import faiss
 class data:
     def __init__(self, path, graph_type='whole'):
         self.datapath = path
-        self.data = self.load_data()
+        self.data = self.load_data(500)
         self.data, self.labels = self.load_labels()
-        self.class_labels = {'defects': {'no': 0, 'yes':1}}
+        self.class_labels = {'class': {'normal':0, 'anomaly':1}}
         #self.similarity_matrix = None
         if graph_type == 'stratified':
             self.stratified_data, self.stratified_labels = self.stratified_data(.95, 25)
@@ -114,8 +114,8 @@ class data:
             return data
 
     def load_labels(self):
-        labels = pd.DataFrame(self.data['defects'], columns=['defects'])
-        data = self.data.loc[:, self.data.columns != 'defects']
+        labels = pd.DataFrame(self.data['class'], columns=['class'])
+        data = self.data.loc[:, self.data.columns != 'class']
         return self.reset_indices(data, labels)
 
     def reset_indices(self, data, labels):
@@ -175,8 +175,8 @@ class data:
         # Convert the graph data to a sparse matrix
         graph = csr_matrix(graph_data)
        
-        mm_file = './mmap_file'
-        graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=graph.shape)
+        #mm_file = './mmap_file'
+        #graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=graph.shape)
         self.graph = graph
         #return graph
 
