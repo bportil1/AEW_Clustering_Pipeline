@@ -7,12 +7,14 @@ import itertools
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 from preprocessing_utils import *
-from aew_sm import *
+from aew import *
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Define the class that contains the objective computation function
 class OptimizationFunction:
+    '''
+    Class with error computation functions
+    '''
     def __init__(self, data=None, similarity_matrix=None, gamma=None):
         self.data = data
         self.similarity_matrix = similarity_matrix
@@ -50,11 +52,15 @@ class OptimizationFunction:
 
 
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
+    '''
+    Function to check if points are close within a user defined range
+    '''
     return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
 def plot_error_surface(aew_obj):
-
-    # Create an instance of the optimization function
+    '''
+    Function to calculate and plot the error surface
+    '''
     opt_function = OptimizationFunction(data = aew_obj.data, similarity_matrix = aew_obj.similarity_matrix)
     
     values = np.arange(-2, 2.1, .10)
@@ -66,14 +72,11 @@ def plot_error_surface(aew_obj):
     for idx, gamma in enumerate(sim_gammas):
         print("Gamma: ", gamma)
         curr_adj_matr = aew_obj.generate_edge_weights(gamma)
-
-        #objective_values.append(opt_function.objective_function(curr_adj_matr))
         
         objective_values[idx] = opt_function.objective_function(curr_adj_matr, gamma)
 
-    # Plotting the surface
-    X = np.unique(sim_gammas[:,0]) #np.linspace(0, 10, 10)  # X-axis points (random for illustration)
-    Y = np.unique(sim_gammas[:,1])  #np.linspace(0, 10, 10)  # Y-axis points (random for illustration)
+    X = np.unique(sim_gammas[:,0])
+    Y = np.unique(sim_gammas[:,1])  
 
     Z = np.zeros((len(X), len(Y)))  
 
@@ -102,6 +105,9 @@ def plot_error_surface(aew_obj):
     fig.show()
 
 def surface_plotter_driver():
+    '''
+    Function to call the  plotting utilities
+    '''
     input_file = 'sq_ds/cm1.csv'
     data_obj = data(input_file, 'whole')
     data_obj.encode_categorical('defects', 'labels')
