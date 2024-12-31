@@ -144,10 +144,10 @@ class clustering():
         cntg_mtx_name = ctg_matrices_path + filename_base + ".csv"
         f = open(cntg_mtx_name, 'a')
         f.close()
-        np.savetxt(cntg_mtx_name, cntg_mtx, delimiter=',', fmt='%d'
+        np.savetxt(cntg_mtx_name, cntg_mtx, delimiter=',', fmt='%d')
         results_file_name = results_path + filename_base + ".csv"
         f = open(results_file_name, 'a')
-        f.close(
+        f.close()
         df.to_csv(results_file_name, index=False)
         vis_file_name = filename_base + "_eigen.html"
         labels_pred = pd.DataFrame(labels_pred, columns=['defects'])

@@ -30,7 +30,7 @@ class data:
     '''
     def __init__(self, path, graph_type='whole'):
         self.datapath = path
-        self.data = self.load_data(500)
+        self.data = self.load_data()
         self.data, self.labels = self.load_labels()
         self.class_labels = {'class': {'normal':0, 'anomaly':1}}
         if graph_type == 'stratified':
