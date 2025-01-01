@@ -6,9 +6,12 @@ from sklearn.decomposition import PCA
 import scipy.sparse as sp
 import warnings
 
+import numba
 from numba import vectorize, cuda
 
 from optimizers import *
+
+import time
 
 warnings.filterwarnings("ignore")
 
@@ -24,7 +27,7 @@ class aew():
         self.gamma = self.gamma_initializer(gamma_init)
         self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
         self.threads = threads
-        self.blocks = blocks
+        self.blocks = (self.data.shape[0] % self.threads) + 1 
 
     #@vectorize
     def correct_similarity_matrix_diag(self, similarity_matrix):
@@ -76,71 +79,41 @@ class aew():
         else:
             return 0
 
-    @cuda.jit(device=True)
-    def objective_computation(self, adj_matrix, data, gamma, degree_idx, out):
-        '''
-        Compute reconstruction error for a section, adjusted for sparse matrix usage
-        '''
-        idx = cuda.grid(1)
-        stride = cuda.gridsize(1)
+#def objective_computation(adj_matrix, data, gamma, degree_idx, xi_reconstruction, out):
 
-        approx_error = 0
-        #for idx in section:
-
-        xi_reconstruction = cuda.device_array(shape=(len(adj_matrix[0]),), dtype=numba.float32)
-        for i in range(idx, len(adj_matrix[0]), stride):
-            #degree_idx = np.sum(adj_matrix[idx, :].toarray())
-            #degree_idx = np.sum(adj_matrix[idx, :])
-            for j in range(0, len(adj_matrix[0])):
-                for k in range(0, len(adj_matrix[0])):
-                    if j != k:
-                        xi_reconstruction[j] = xi_reconstruction[j] + (adj_matrix[i][k] * adj_matrix[j][k])
-
-
-                #xi_reconstruction = np.sum([adj_matrix[idx, y] * np.asarray(self.data.loc[[y]])[0] for y in range(len(self.gamma)) if idx != y], axis=0)
-                
-                if degree_idx[i] != 0 and not isclose(degree_idx[i], 0, abs_tol=1e-100):
-                    xi_reconstruction[j] /= degree_idx[i]
-                else:
-                    xi_reconstruction[j] = 0
-
-                approx_error = approx_error + (data[i][j] - xi_reconstruction[j]) ** 2          
-            #approx_error += np.sum((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction)**2)
-            out[i] = approx_error
-        #return approx_error
-
-    @cuda.jit(device=True)
-    def sum_degree_idx(self, adj_matr, out):
-        idx = cuda.grid(1)
-        stride = cuda.gridsize(1)
-
-        for i in range(idx, len(adj_matr[0]), stride):
-            for j in range(0, len(adj_matr[0])):
-                out[i] = out[i] + adj_matr[i][j]
-
-    def check_context():
-        cuda_context = cuda.current_context()
-        if cuda_context:
-            return 'GPU'
-        else:
-            return 'CPU'
 
     def objective_function(self, adj_matr, gamma):
         '''
         Parallelization of error computation
         '''
 
-        print("adj_matr type: ", type(adj_matr))
-        print("Adjacency Matrix: ", adj_matr)
-        matr_d = cuda.to_device(adj_matr, dtype=np.float32)
-        data_d = cuda.to_device(self.data, dtype=np.float32)
-        gamma_d = cuda.to_device(gamma, dtype=np.float32)
+        print("adj_matr type: ", self.data.shape[0])
+        print("Adjacency Matrix: ", self.data.to_numpy())
+        matr_d = cuda.to_device(adj_matr)
+        data_d = cuda.to_device(self.data.to_numpy())
+        gamma_d = cuda.to_device(gamma)
         degree_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
+        xi_reconstruction = cuda.device_array(shape=(self.data.shape[0], self.data.shape[0]
+), dtype=np.float32)
         out_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
         
-        sum_degree_idx[self.blocks, self.threads](matr_d, degree_d)
-        objective_computation[self.blocks, self.threads](matr_d, data_d, gamma_d, degree_d, out_d)
+        #print(sizeof(matr_d))
+        #print(sizeof(data_d))
+        #print(sizeof(gamma_d))
+        #print(sizeof(degree_d))
+        #print(sizeof(xi_reconstruction))
+        #print(sizeof(out_d))
 
+        #time.sleep(60)
+        
+        
+        #sum_degree_idx[self.blocks, self.threads](matr_d, degree_d)
+        #out_res_d = degree_d.copy_to_host()
+        #print("resulting degree_d: ", out_res_d)
+        #stream.synchronize()
+        print("IN BETWEEN CUDA CALLS")
+        objective_computation[self.blocks, self.threads](matr_d, data_d, gamma_d, degree_d, xi_reconstruction, out_d)
+        #stream.synchronize()
         #error = out_d
         '''
         split_data = self.split(range(self.data.shape[0]), cpu_count())
@@ -148,8 +121,13 @@ class aew():
             errors = [pool.apply_async(self.objective_computation, (section, adj_matr, gamma)) for section in split_data]
             error = [error.get() for error in errors]
         '''
-        return np.sum(out_d)
-        #return np.sum(error)
+        error = out_d.copy_to_host()
+        print("Error Array: ", error)
+        print("Final Error: ", np.sum(error))
+
+        #return 0
+        #return np.sum(out_d)
+        return np.sum(error)
 
     #@vectorize
     def gradient_computation(self, section, similarity_matrix, gamma):
@@ -290,3 +268,64 @@ class aew():
         #print(self.eigenvectors)
         #self.eigenvectors = pca_normalized.toarray()
         print("Eigenvector Computation Complete")
+
+#(matr_d, data_d, gamma_d, degree_d, xi_reconstruction, out_d)
+
+@cuda.jit
+def objective_computation(adj_matrix, data, gamma, degree_idx, xi_reconstruction, out):
+    '''
+    Compute reconstruction error for a section, adjusted for sparse matrix usage
+    '''
+    
+    idx = cuda.grid(1)
+    stride = cuda.gridsize(1)
+   
+    #degree_idx = cuda.shared.array(1, dtype=DTYPE)
+
+    for i in range(idx, len(adj_matrix[0]), stride):
+        curr_i = i + stride
+        for j in range(0, len(adj_matrix[0])):
+            
+            cuda.atomic.add(degree_idx, curr_i, adj_matrix[curr_i][j])
+
+            #degree_idx[curr_i] = degree_idx[curr_i] + adj_matrix[curr_i][j]
+    
+            #cuda.syncthreads()
+    
+    #idx = cuda.grid(1)
+    #stride = cuda.gridsize(1)
+
+    #approx_error = 0
+    #for idx in section:
+
+    #xi_reconstruction = cuda.device_array(shape=(len(adj_matrix[0]),), dtype=numba.float32)
+     
+    for i in range(idx, len(adj_matrix[0]), stride):
+        curr_i = i + stride
+        approx_error = 0
+        for j in range(0, len(adj_matrix[0])):
+            xi_reconstruction[curr_i][j] = 0
+            for k in range(0, len(adj_matrix[0])):
+                if j != k:
+                    xi_reconstruction[curr_i][j] = xi_reconstruction[curr_i][j] + (adj_matrix[curr_i][k] * adj_matrix[j][k])
+
+            if degree_idx[curr_i] != 0 and not degree_idx[curr_i] <= 1e-100:
+                xi_reconstruction[curr_i][j] /= degree_idx[curr_i]
+            else:
+                xi_reconstruction[curr_i][j] = 0
+            approx_error = approx_error + (data[curr_i][j] - xi_reconstruction[curr_i][j]) ** 2          
+        #out[curr_i] = approx_error
+        cuda.atomic.add(out, curr_i, approx_error)
+    cuda.syncthreads()
+    
+
+@cuda.jit
+def sum_degree_idx(adj_matr, out):
+    idx = cuda.grid(1)
+    stride = cuda.gridsize(1)
+
+    for i in range(idx, len(adj_matr[0]), stride):
+        curr_i = i + stride
+        for j in range(0, len(adj_matr[0])):
+            out[curr_i] = out[curr_i] + adj_matr[curr_i][j]
+    cuda.syncthreads()
