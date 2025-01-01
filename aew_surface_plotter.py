@@ -7,7 +7,7 @@ import itertools
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 from preprocessing_utils import *
-from aew import *
+from aew_gpu import *
 import plotly.express as px
 import plotly.graph_objects as go
 

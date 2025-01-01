@@ -32,7 +32,7 @@ class data:
         self.datapath = path
         self.data = self.load_data()
         self.data, self.labels = self.load_labels()
-        self.class_labels = {'class': {'normal':0, 'anomaly':1}}
+        self.class_labels = {'defects': {'false':0, 'true':1}}
         if graph_type == 'stratified':
             self.stratified_data, self.stratified_labels = self.stratified_data(.95, 25)
         self.graph = None
@@ -90,7 +90,7 @@ class data:
         if target_set == 'data': 
             label_encoder = label_encoder.fit(self.data[column_name])
             self.data[column_name] = label_encoder.transform(self.data[column_name])
-        elif target_set == 'labels':
+        elif target_set == 'defects':
             #print(self.labels)
             self.labels = self.labels.replace(self.class_labels)
 
@@ -108,8 +108,8 @@ class data:
         '''
         Function to load labels
         '''
-        labels = pd.DataFrame(self.data['class'], columns=['class'])
-        data = self.data.loc[:, self.data.columns != 'class']
+        labels = pd.DataFrame(self.data['defects'], columns=['defects'])
+        data = self.data.loc[:, self.data.columns != 'defects']
         return self.reset_indices(data, labels)
 
     def reset_indices(self, data, labels):
@@ -132,9 +132,10 @@ class data:
             data_matrix = np.array(self.stratified_data[rep], dtype=np.float32)
             x_len = self.stratified_data[rep].shape[0]
             y_len = self.stratified_data[rep].shape[0]
+        contig_data_matr = np.ascontiguousarray(data_matrix)
         index = faiss.IndexFlatL2(data_matrix.shape[1])
-        index.add(data_matrix)
-        distances, indices = index.search(data_matrix, num_neighbors) 
+        index.add(contig_data_matr)
+        distances, indices = index.search(contig_data_matr, num_neighbors) 
         if mode == 'distance':
             graph_data = np.zeros((x_len, y_len))
             for i in range(len(indices)):
@@ -160,7 +161,7 @@ class visualizer():
     def __init__(self, labels, dims):
 
         if isinstance(labels, np.ndarray):
-            self.labels = pd.DataFrame(labels, columns=['class'])
+            self.labels = pd.DataFrame(labels, columns=['defects'])
         elif isinstance(labels, pd.DataFrame):
             self.labels = labels
         self.dims = dims

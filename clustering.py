@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import cross_validate
 from preprocessing_utils import *
-from aew import *
+from aew_gpu import *
 import warnings
 import time
 from itertools import cycle, islice

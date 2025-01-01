@@ -6,13 +6,15 @@ from sklearn.decomposition import PCA
 import scipy.sparse as sp
 import warnings
 
+from numba import vectorize, cuda
+
 from optimizers import *
 
 warnings.filterwarnings("ignore")
 
 class aew():
 
-    def __init__(self, similarity_matrix, data, comp_data, labels, test_rep=None, gamma_init=None):
+    def __init__(self, similarity_matrix, data, comp_data, labels, test_rep=None, threads=32, blocks=128, gamma_init=None):
         '''
         Initialize class attributes with sparse matrix handling
         '''
@@ -21,7 +23,10 @@ class aew():
         self.eigenvectors = None
         self.gamma = self.gamma_initializer(gamma_init)
         self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
+        self.threads = threads
+        self.blocks = blocks
 
+    #@vectorize
     def correct_similarity_matrix_diag(self, similarity_matrix):
         '''
         Correct diagonals of precomputed similarity matrix, if necessary
@@ -31,8 +36,9 @@ class aew():
         identity = sp.lil_matrix((self.data.shape[0], self.data.shape[0]))
         identity.setdiag(np.ones(self.data.shape[0]))
         similarity_matrix = similarity_matrix.tolil()  # Convert to LIL format for easy manipulation
-        similarity_matrix.setdiag(np.ones(self.data.shape[0]))  # Correct the diagonal
-        return similarity_matrix
+        #similarity_matrix.setdiag(np.ones(self.data.shape[0]))
+        #print("Sim matrix after correction: ", similarity_matrix.toarray())
+        return similarity_matrix.toarray()
 
     def gamma_initializer(self, gamma_init=None):
         '''
@@ -49,6 +55,7 @@ class aew():
             gamma = rng.random(self.data.shape[1])
         return gamma
 
+    #@vectorize
     def similarity_function(self, pt1_idx, pt2_idx, gamma):
         '''
         Compute similarity between two points using sparse matrix operations
@@ -69,32 +76,82 @@ class aew():
         else:
             return 0
 
-    def objective_computation(self, section, adj_matrix, gamma):
+    @cuda.jit(device=True)
+    def objective_computation(self, adj_matrix, data, gamma, degree_idx, out):
         '''
         Compute reconstruction error for a section, adjusted for sparse matrix usage
         '''
+        idx = cuda.grid(1)
+        stride = cuda.gridsize(1)
+
         approx_error = 0
-        for idx in section:
+        #for idx in section:
+
+        xi_reconstruction = cuda.device_array(shape=(len(adj_matrix[0]),), dtype=numba.float32)
+        for i in range(idx, len(adj_matrix[0]), stride):
             #degree_idx = np.sum(adj_matrix[idx, :].toarray())
-            degree_idx = np.sum(adj_matrix[idx, :])
-            xi_reconstruction = np.sum([adj_matrix[idx, y] * np.asarray(self.data.loc[[y]])[0] for y in range(len(self.gamma)) if idx != y], axis=0)
-            if degree_idx != 0 and not isclose(degree_idx, 0, abs_tol=1e-100):
-                xi_reconstruction /= degree_idx
-            else:
-                xi_reconstruction = np.zeros(len(self.gamma))
-            approx_error += np.sum((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction)**2)
-        return approx_error
+            #degree_idx = np.sum(adj_matrix[idx, :])
+            for j in range(0, len(adj_matrix[0])):
+                for k in range(0, len(adj_matrix[0])):
+                    if j != k:
+                        xi_reconstruction[j] = xi_reconstruction[j] + (adj_matrix[i][k] * adj_matrix[j][k])
+
+
+                #xi_reconstruction = np.sum([adj_matrix[idx, y] * np.asarray(self.data.loc[[y]])[0] for y in range(len(self.gamma)) if idx != y], axis=0)
+                
+                if degree_idx[i] != 0 and not isclose(degree_idx[i], 0, abs_tol=1e-100):
+                    xi_reconstruction[j] /= degree_idx[i]
+                else:
+                    xi_reconstruction[j] = 0
+
+                approx_error = approx_error + (data[i][j] - xi_reconstruction[j]) ** 2          
+            #approx_error += np.sum((np.asarray(self.data.loc[[idx]])[0] - xi_reconstruction)**2)
+            out[i] = approx_error
+        #return approx_error
+
+    @cuda.jit(device=True)
+    def sum_degree_idx(self, adj_matr, out):
+        idx = cuda.grid(1)
+        stride = cuda.gridsize(1)
+
+        for i in range(idx, len(adj_matr[0]), stride):
+            for j in range(0, len(adj_matr[0])):
+                out[i] = out[i] + adj_matr[i][j]
+
+    def check_context():
+        cuda_context = cuda.current_context()
+        if cuda_context:
+            return 'GPU'
+        else:
+            return 'CPU'
 
     def objective_function(self, adj_matr, gamma):
         '''
         Parallelization of error computation
         '''
+
+        print("adj_matr type: ", type(adj_matr))
+        print("Adjacency Matrix: ", adj_matr)
+        matr_d = cuda.to_device(adj_matr, dtype=np.float32)
+        data_d = cuda.to_device(self.data, dtype=np.float32)
+        gamma_d = cuda.to_device(gamma, dtype=np.float32)
+        degree_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
+        out_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
+        
+        sum_degree_idx[self.blocks, self.threads](matr_d, degree_d)
+        objective_computation[self.blocks, self.threads](matr_d, data_d, gamma_d, degree_d, out_d)
+
+        #error = out_d
+        '''
         split_data = self.split(range(self.data.shape[0]), cpu_count())
         with Pool(processes=cpu_count()) as pool:
             errors = [pool.apply_async(self.objective_computation, (section, adj_matr, gamma)) for section in split_data]
             error = [error.get() for error in errors]
-        return np.sum(error)
+        '''
+        return np.sum(out_d)
+        #return np.sum(error)
 
+    #@vectorize
     def gradient_computation(self, section, similarity_matrix, gamma):
         '''
         Compute gradient for a section, adjusted for sparse matrix usage
@@ -141,6 +198,7 @@ class aew():
         if optimizer == 'adam':
             opt_obj = AdamOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, self.gradient_function, num_iterations)
         elif optimizer == 'simulated_annealing':
+            print("before optimizer: ", self.similarity_matrix)
             opt_obj = SimulatedAnnealingOptimizer(self.similarity_matrix, self.gamma, self.generate_edge_weights, self.objective_function, num_iterations, cooling_rate=.95)
         elif optimizer == 'particle_swarm':
             opt_obj = ParticleSwarmOptimizer(self.similarity_matrix, self.gamma, self.objective_function,  self.generate_edge_weights, 3, len(self.gamma), num_iterations)
@@ -173,7 +231,9 @@ class aew():
         print("Generating Edge Weights")
         print("Data Size: ", self.data.shape)
         print("Graph Size: ", self.similarity_matrix.shape)
-        curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
+        #curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
+        curr_sim_matr = np.zeros_like(self.similarity_matrix)
+        print("New Sim Matr Size: ", curr_sim_matr.shape)
         #mm_file = './mmap_file'
         #curr_sim_matr = np.memmap(mm_file + 'curr_sim_matr', dtype='float32', mode='w+', shape=curr_sim_matr.shape)
 
@@ -184,8 +244,8 @@ class aew():
         for section in edge_weights:
             for weight in section:
                 if weight[0] != weight[1]:
-                    curr_sim_matr[weight[0], weight[1]] = weight[2]
-                    curr_sim_matr[weight[1], weight[0]] = weight[2]
+                    curr_sim_matr[weight[0]][weight[1]] = weight[2]
+                    curr_sim_matr[weight[1]][weight[0]] = weight[2]
         curr_sim_matr = self.subtract_identity(curr_sim_matr)
         print("Edge Weight Generation Complete")
         return curr_sim_matr
@@ -194,9 +254,10 @@ class aew():
         '''
         Subtract matrix by identity for normalized symmetric laplacian
         '''
-        identity = sp.lil_matrix(adj_matrix.shape)
-        identity.setdiag(2)  # Set diagonal elements to 2
-        adj_matrix = identity - adj_matrix
+        #identity = sp.lil_matrix(adj_matrix.shape)
+        #identity.setdiag(2)  # Set diagonal elements to 2
+        #adj_matrix = identity - adj_matrix
+        np.fill_diagonal(adj_matrix, -1)
         return adj_matrix
 
     def unit_normalization(self, matrix):
