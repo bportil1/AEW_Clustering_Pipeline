@@ -26,7 +26,7 @@ class aew():
         self.eigenvectors = None
         self.gamma = self.gamma_initializer(gamma_init)
         self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
-        self.threads = threads
+        self.threads = len(self.gamma)
         self.blocks = (self.data.shape[0] % self.threads) + 1 
 
     #@vectorize
@@ -93,40 +93,30 @@ class aew():
         data_d = cuda.to_device(self.data.to_numpy())
         gamma_d = cuda.to_device(gamma)
         degree_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
+        error_arr_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
         xi_reconstruction = cuda.device_array(shape=(self.data.shape[0], self.data.shape[0]
 ), dtype=np.float32)
         out_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
         
-        #print(sizeof(matr_d))
-        #print(sizeof(data_d))
-        #print(sizeof(gamma_d))
-        #print(sizeof(degree_d))
-        #print(sizeof(xi_reconstruction))
-        #print(sizeof(out_d))
+        print("BEFORE CUDA KERNEL CALL")
+        print("NUMBER OF BLOCKS: ", self.blocks)
+        print("NUMBER OF THREADS: ", self.threads) 
 
-        #time.sleep(60)
+        print(f"Free memory before operation: {cuda.current_context().get_memory_info()[0] / 1e9} GB")
+
+        cuda.synchronize()
+        objective_computation[self.blocks, self.threads](matr_d, data_d, gamma_d, degree_d, error_arr_d, xi_reconstruction, out_d)
+        print("AFTER CUDA KERNEL CALL")
         
+        print(f"Free memory after synchronization: {cuda.current_context().get_memory_info()[0] / 1e9} GB")
         
-        #sum_degree_idx[self.blocks, self.threads](matr_d, degree_d)
-        #out_res_d = degree_d.copy_to_host()
-        #print("resulting degree_d: ", out_res_d)
-        #stream.synchronize()
-        print("IN BETWEEN CUDA CALLS")
-        objective_computation[self.blocks, self.threads](matr_d, data_d, gamma_d, degree_d, xi_reconstruction, out_d)
-        #stream.synchronize()
-        #error = out_d
-        '''
-        split_data = self.split(range(self.data.shape[0]), cpu_count())
-        with Pool(processes=cpu_count()) as pool:
-            errors = [pool.apply_async(self.objective_computation, (section, adj_matr, gamma)) for section in split_data]
-            error = [error.get() for error in errors]
-        '''
+        cuda.synchronize()
         error = out_d.copy_to_host()
+        error = np.nan_to_num(error, nan=0, posinf=1e20, neginf=-1e20)
+    
         print("Error Array: ", error)
         print("Final Error: ", np.sum(error))
 
-        #return 0
-        #return np.sum(out_d)
         return np.sum(error)
 
     #@vectorize
@@ -272,7 +262,7 @@ class aew():
 #(matr_d, data_d, gamma_d, degree_d, xi_reconstruction, out_d)
 
 @cuda.jit
-def objective_computation(adj_matrix, data, gamma, degree_idx, xi_reconstruction, out):
+def objective_computation(adj_matrix, data, gamma, degree_idx, approx_error, xi_reconstruction, out):
     '''
     Compute reconstruction error for a section, adjusted for sparse matrix usage
     '''
@@ -280,42 +270,31 @@ def objective_computation(adj_matrix, data, gamma, degree_idx, xi_reconstruction
     idx = cuda.grid(1)
     stride = cuda.gridsize(1)
    
-    #degree_idx = cuda.shared.array(1, dtype=DTYPE)
-
+    
     for i in range(idx, len(adj_matrix[0]), stride):
         curr_i = i + stride
-        for j in range(0, len(adj_matrix[0])):
-            
-            cuda.atomic.add(degree_idx, curr_i, adj_matrix[curr_i][j])
-
-            #degree_idx[curr_i] = degree_idx[curr_i] + adj_matrix[curr_i][j]
-    
-            #cuda.syncthreads()
-    
-    #idx = cuda.grid(1)
-    #stride = cuda.gridsize(1)
-
-    #approx_error = 0
-    #for idx in section:
-
-    #xi_reconstruction = cuda.device_array(shape=(len(adj_matrix[0]),), dtype=numba.float32)
-     
+        degree_idx[curr_i] = degree_idx[curr_i] + adj_matrix[i][curr_i]
+    cuda.syncthreads()
+  
+    idx = cuda.grid(1)
+    stride = cuda.gridsize(1)
+ 
     for i in range(idx, len(adj_matrix[0]), stride):
         curr_i = i + stride
-        approx_error = 0
+        #approx_error = 0
         for j in range(0, len(adj_matrix[0])):
             xi_reconstruction[curr_i][j] = 0
             for k in range(0, len(adj_matrix[0])):
                 if j != k:
                     xi_reconstruction[curr_i][j] = xi_reconstruction[curr_i][j] + (adj_matrix[curr_i][k] * adj_matrix[j][k])
 
-            if degree_idx[curr_i] != 0 and not degree_idx[curr_i] <= 1e-100:
+            if degree_idx[curr_i] != 0 and not abs(degree_idx[curr_i]) <= 1e-100:
                 xi_reconstruction[curr_i][j] /= degree_idx[curr_i]
             else:
                 xi_reconstruction[curr_i][j] = 0
-            approx_error = approx_error + (data[curr_i][j] - xi_reconstruction[curr_i][j]) ** 2          
-        #out[curr_i] = approx_error
-        cuda.atomic.add(out, curr_i, approx_error)
+            approx_error[curr_i] = approx_error[curr_i] + (data[curr_i][j] - xi_reconstruction[curr_i][j]) ** 2        
+        out[curr_i] = out[curr_i] + approx_error[curr_i]      
+        #cuda.atomic.add(out, curr_i, approx_error)
     cuda.syncthreads()
     
 
