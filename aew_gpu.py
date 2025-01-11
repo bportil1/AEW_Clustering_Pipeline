@@ -90,15 +90,14 @@ class aew():
         d_data = cuda.to_device(self.data.to_numpy())
         d_gamma = cuda.to_device(gamma)
         d_degrees = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
-        d_first_term = cuda.device_array(shape=(self.data.shape[0], ), dtype=np.float32)
-        d_second_term = cuda.device_array(shape=(self.data.shape[0], ), dtype=np.float32)
-        d_third_term = cuda.device_array(shape=(self.data.shape[0], ), dtype=np.float32)
-        d_gradients = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
+        d_first_term = cuda.device_array(shape=(self.data.shape[1], ), dtype=np.float32)
+        d_second_term = cuda.device_array(shape=(self.data.shape[1], ), dtype=np.float32)
+        d_third_term = cuda.device_array(shape=(self.data.shape[1], ), dtype=np.float32)
+        d_gradients = cuda.device_array(shape=(self.data.shape[1],), dtype=np.float32)
         gradient_computation[self.blocks, self.threads](d_sim_matr, d_data, d_gamma, d_degrees, d_first_term, d_second_term, d_third_term, d_gradients)
         gradients = d_gradients.copy_to_host()
         gradients = np.nan_to_num(gradients, nan=0)
-        print("At end of gradient_function: ", gradients)
-        return np.sum(gradients, axis=0)
+        return gradients
 
     def optimize_gamma(self, optimizer, num_iterations=100):
         '''
@@ -121,16 +120,18 @@ class aew():
         '''
         print("Generating Optimal Edge Weights")
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
-        #self.optimize_gamma('simulated_annealing', num_iterations)
-        self.optimize_gamma('adam', num_iterations)
+        self.optimize_gamma('simulated_annealing', num_iterations)
+        #self.optimize_gamma('adam', num_iterations)
+        #self.optimize_gamma('particle_swarm')
 
     def generate_edge_weights(self, gamma):
         '''
         Parallelization of edge weight computation using sparse matrix operations
         '''
         print("Generating Edge Weights")
-        print("Data Size: ", self.data.shape)
-        print("Graph Size: ", self.similarity_matrix.shape)
+        #print("Data Size: ", self.data.shape)
+        #print("Graph Size: ", self.similarity_matrix.shape)
+        print("CURRENT DEGREES: ", np.sum(self.similarity_matrix[:, :]))
         #curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
         curr_sim_matr = np.zeros_like(self.similarity_matrix)
         print("New Sim Matr Size: ", curr_sim_matr.shape)
@@ -145,6 +146,7 @@ class aew():
         
         curr_sim_matr = d_sim_matr.copy_to_host()
         curr_sim_matr = self.subtract_identity(curr_sim_matr)
+        curr_sim_matr = np.nan_to_num(curr_sim_matr, nan=0, posinf=1e10, neginf=-1e10)
         return curr_sim_matr
         
     def subtract_identity(self, adj_matrix):
@@ -190,14 +192,16 @@ def objective_computation(adj_matrix, data, gamma, degree_idx, approx_error, xi_
     total = 0.0
     for i in range(row_len):
         total += adj_matrix[x, i]
+    print(total)
     degree_idx[x] = total 
     x, y = cuda.grid(2)
     total = 0.0
     for i in range(data.shape[1]):
-        if abs(degree_idx[x]) > 1e-20:
+        if abs(degree_idx[x]) > 1e-10:
             total += (data[x, i] - ((adj_matrix[x, y] * data[y, i]) / degree_idx[x]))**2 
         else:
             total = 0
+    #print(total)
     out[x] = total
 
 @cuda.jit
@@ -213,7 +217,7 @@ def edge_weight_computation(curr_sim_mtrx, data, gamma, pt_degrees, out):
     total = 0.0
     for i in range(row_len):
         norm_term = sqrt(abs(pt_degrees[x] * pt_degrees[y]))
-        if abs(gamma[i]) > 1e-5 and abs(norm_term) > 1e-5:
+        if abs(gamma[i]) > 1e-5 and abs(norm_term) > 1e-10:
             total += (exp(-(((data[x, i] - data[y, i])**2) / gamma[i]))) / norm_term   
     out[x, y] = total
   
@@ -226,7 +230,7 @@ def gradient_computation(adj_matrix, data, gamma, pt_degrees, first_terms, secon
     for i in range(row_len):
         total += adj_matrix[i, y]
         if abs(gamma[i]) > 1e-7:
-            gamma_cubed = gamma[i] ** 3
+            gamma_cubed = gamma[i] ** (-3)
     pt_degrees[x] = total
     gamma[x] = gamma_cubed
     
@@ -235,7 +239,7 @@ def gradient_computation(adj_matrix, data, gamma, pt_degrees, first_terms, secon
     second_term = 0.0
     third_term = 0.0
     for i in range(row_len):
-        if i != y and abs(pt_degrees[x]) > 1e-5:
+        if i != y and abs(pt_degrees[x]) > 1e-10:
             normed_recons = (data[x, i] - (adj_matrix[x, y] * data[y, i])) / pt_degrees[x]
             first_term += normed_recons
             third_term += (2 * adj_matrix[x, i]) * (((data[x, i] - data[y, i])**2) * gamma[i]) * normed_recons
@@ -246,5 +250,5 @@ def gradient_computation(adj_matrix, data, gamma, pt_degrees, first_terms, secon
     second_terms[x] = second_term
     third_terms[x] = third_term
     
-    x, y = cuda.grid(2)
-    out[x] = first_terms[x] * (second_terms[x] - third_terms[x])
+    for i in range(row_len):
+        out[i] = first_terms[i] * (second_terms[i] - third_terms[i])

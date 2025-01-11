@@ -16,30 +16,24 @@ def aew_test_driver():
     Function to run AEW clustering test
     '''
 
-    cm1_file = 'sq_ds/cm1.csv'
+    cm1_file = 'sq_ds/jm1.csv'
 
-    data_obj = data(cm1_file, graph_type='whole')
+    #data_obj = data(cm1_file, graph_type='whole')
 
-    #data_obj = data(cm1_file, graph_type='stratified')
-
-    #data_obj.load_data()
-
-    #data_obj.load_labels()
+    data_obj = data(cm1_file, graph_type='stratified')
 
     data_obj.encode_categorical('defects', 'labels')
 
     data_obj.scale_data('min_max')
     
-    data_obj.generate_graphs(100, data_type='whole')
+    #data_obj.generate_graphs(100, data_type='whole')
 
     #print("Initial Sim Matr: ", data_obj.graph)
 
-    aew_obj = aew(data_obj.graph, data_obj.data, data_obj.data, data_obj.labels,  gamma_init='var')
+    #aew_obj = aew(data_obj.graph, data_obj.data, data_obj.data, data_obj.labels,  gamma_init='var')
 
-    aew_obj.generate_optimal_edge_weights(1000)
+    #aew_obj.generate_optimal_edge_weights(1000)
 
-
-    '''
     for rep in range(5):
         
         diag_base = str(rep) + "," 
@@ -90,7 +84,7 @@ def aew_test_driver():
         clustering_obj.generate_kmeans()
 
         clustering_obj.generate_gaussianmixture()
-        '''
+        
 if __name__ == '__main__':
     aew_test_driver()
         

@@ -190,6 +190,9 @@ class ParticleSwarmOptimizer:
                 
                 print("Current Position for Agent ", i, ":", new_position)
                 curr_adj_matr = self.generate_edge_weights(new_position)
+
+                #print("NEW ADJ MATR: ", curr_adj_matr)
+                #print("NEW POSITION: ", self.positions[i])
                 fitness = self.objective_function(curr_adj_matr, self.positions[i])
                 
                 print("Current Fitness for Agent ", i, ":", fitness)
