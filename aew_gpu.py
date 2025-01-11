@@ -5,6 +5,7 @@ from math import isclose
 from sklearn.decomposition import PCA
 import scipy.sparse as sp
 import warnings
+from math import sqrt, exp
 
 import numba
 from numba import vectorize, cuda
@@ -26,8 +27,9 @@ class aew():
         self.eigenvectors = None
         self.gamma = self.gamma_initializer(gamma_init)
         self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
-        self.threads = len(self.gamma)
-        self.blocks = (self.data.shape[0] % self.threads) + 1 
+        self.threads = (16, 16)
+        self.blocks = (len(self.similarity_matrix[0]) + self.threads[0] - 1) // self.threads[0], \
+                      (len(self.similarity_matrix[0]) + self.threads[1] - 1) // self.threads[1]
 
     #@vectorize
     def correct_similarity_matrix_diag(self, similarity_matrix):
@@ -58,64 +60,39 @@ class aew():
             gamma = rng.random(self.data.shape[1])
         return gamma
 
-    #@vectorize
-    def similarity_function(self, pt1_idx, pt2_idx, gamma):
-        '''
-        Compute similarity between two points using sparse matrix operations
-        '''
-        point1 = np.asarray(self.data.loc[[pt1_idx]])[0]
-        point2 = np.asarray(self.data.loc[[pt2_idx]])[0]
-        deg_pt1 = np.sum(self.similarity_matrix[pt1_idx, :])
-        deg_pt2 = np.sum(self.similarity_matrix[pt2_idx, :])
-        
-        # Compute squared difference and apply gamma
-        similarity_measure = np.sum(np.where(np.abs(gamma) > 1e-5, (((point1 - point2)**2) / (gamma**2)), 0))
-        similarity_measure = np.exp(-similarity_measure)
-        
-        degree_normalization_term = np.sqrt(np.abs(deg_pt1 * deg_pt2))
-        
-        if degree_normalization_term != 0 and not isclose(degree_normalization_term, 0, abs_tol=1e-100):
-            return similarity_measure / degree_normalization_term
-        else:
-            return 0
-
-#def objective_computation(adj_matrix, data, gamma, degree_idx, xi_reconstruction, out):
-
-
     def objective_function(self, adj_matr, gamma):
         '''
         Parallelization of error computation
         '''
 
-        print("adj_matr type: ", self.data.shape[0])
-        print("Adjacency Matrix: ", self.data.to_numpy())
+        #print("adj_matr type: ", self.data.shape[0])
+        #print("Adjacency Matrix: ", self.data.to_numpy())
         matr_d = cuda.to_device(adj_matr)
         data_d = cuda.to_device(self.data.to_numpy())
         gamma_d = cuda.to_device(gamma)
         degree_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
-        error_arr_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
-        xi_reconstruction = cuda.device_array(shape=(self.data.shape[0], self.data.shape[0]
-), dtype=np.float32)
+        error_arr_d = cuda.device_array(shape=(self.data.shape[0], self.data.shape[0]), dtype=np.float32)
+        xi_reconstruction = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
         out_d = cuda.device_array(shape=(self.data.shape[0],), dtype=np.float32)
         
-        print("BEFORE CUDA KERNEL CALL")
-        print("NUMBER OF BLOCKS: ", self.blocks)
-        print("NUMBER OF THREADS: ", self.threads) 
+        #print("BEFORE CUDA KERNEL CALL")
+        #print("NUMBER OF BLOCKS: ", self.blocks)
+        #print("NUMBER OF THREADS: ", self.threads) 
 
-        print(f"Free memory before operation: {cuda.current_context().get_memory_info()[0] / 1e9} GB")
+        #print(f"Free memory before operation: {cuda.current_context().get_memory_info()[0] / 1e9} GB")
 
         cuda.synchronize()
         objective_computation[self.blocks, self.threads](matr_d, data_d, gamma_d, degree_d, error_arr_d, xi_reconstruction, out_d)
-        print("AFTER CUDA KERNEL CALL")
+        #print("AFTER CUDA KERNEL CALL")
         
-        print(f"Free memory after synchronization: {cuda.current_context().get_memory_info()[0] / 1e9} GB")
+        #print(f"Free memory after synchronization: {cuda.current_context().get_memory_info()[0] / 1e9} GB")
         
         cuda.synchronize()
         error = out_d.copy_to_host()
-        error = np.nan_to_num(error, nan=0, posinf=1e20, neginf=-1e20)
+        error = np.nan_to_num(error, nan=0, posinf=1e10, neginf=-1e10)
     
         print("Error Array: ", error)
-        print("Final Error: ", np.sum(error))
+        #print("Final Error: ", np.sum(error))
 
         return np.sum(error)
 
@@ -181,17 +158,6 @@ class aew():
         self.similarity_matrix = self.generate_edge_weights(self.gamma)
         self.optimize_gamma('simulated_annealing', num_iterations)
 
-    def edge_weight_computation(self, section, gamma):
-        '''
-        Compute edge weights for a section using sparse matrix operations
-        '''
-        res = []
-        for idx in section:
-            for vertex in range(self.data.shape[0]):
-                if vertex != idx:
-                    res.append((idx, vertex, self.similarity_function(idx, vertex, gamma)))
-        return res
-
     def generate_edge_weights(self, gamma):
         '''
         Parallelization of edge weight computation using sparse matrix operations
@@ -204,20 +170,21 @@ class aew():
         print("New Sim Matr Size: ", curr_sim_matr.shape)
         #mm_file = './mmap_file'
         #curr_sim_matr = np.memmap(mm_file + 'curr_sim_matr', dtype='float32', mode='w+', shape=curr_sim_matr.shape)
+        
+        d_adj_matr = cuda.to_device(self.similarity_matrix)
+        d_data = cuda.to_device(self.data)
+        d_gamma = cuda.to_device(gamma)
+        d_pt_degrees = cuda.to_device(np.zeros_like(gamma))
+        d_sim_matr = cuda.to_device(curr_sim_matr)
 
-        split_data = self.split(range(self.data.shape[0]), cpu_count())
-        with Pool(processes=cpu_count()) as pool:
-            edge_weight_res = [pool.apply_async(self.edge_weight_computation, (section, gamma)) for section in split_data]
-            edge_weights = [edge_weight.get() for edge_weight in edge_weight_res]
-        for section in edge_weights:
-            for weight in section:
-                if weight[0] != weight[1]:
-                    curr_sim_matr[weight[0]][weight[1]] = weight[2]
-                    curr_sim_matr[weight[1]][weight[0]] = weight[2]
+        edge_weight_computation[self.blocks, self.threads](d_adj_matr, d_data, d_gamma, d_pt_degrees, d_sim_matr)
+        
+        curr_sim_matr = d_sim_matr.copy_to_host()
+
         curr_sim_matr = self.subtract_identity(curr_sim_matr)
-        print("Edge Weight Generation Complete")
-        return curr_sim_matr
 
+        return curr_sim_matr
+        
     def subtract_identity(self, adj_matrix):
         '''
         Subtract matrix by identity for normalized symmetric laplacian
@@ -266,45 +233,118 @@ def objective_computation(adj_matrix, data, gamma, degree_idx, approx_error, xi_
     '''
     Compute reconstruction error for a section, adjusted for sparse matrix usage
     '''
-    
-    idx = cuda.grid(1)
-    stride = cuda.gridsize(1)
-   
-    
-    for i in range(idx, len(adj_matrix[0]), stride):
-        curr_i = i + stride
-        degree_idx[curr_i] = degree_idx[curr_i] + adj_matrix[i][curr_i]
-    cuda.syncthreads()
-  
-    idx = cuda.grid(1)
-    stride = cuda.gridsize(1)
- 
-    for i in range(idx, len(adj_matrix[0]), stride):
-        curr_i = i + stride
-        #approx_error = 0
-        for j in range(0, len(adj_matrix[0])):
-            xi_reconstruction[curr_i][j] = 0
-            for k in range(0, len(adj_matrix[0])):
-                if j != k:
-                    xi_reconstruction[curr_i][j] = xi_reconstruction[curr_i][j] + (adj_matrix[curr_i][k] * adj_matrix[j][k])
+    row_len = len(adj_matrix[0])
 
-            if degree_idx[curr_i] != 0 and not abs(degree_idx[curr_i]) <= 1e-100:
-                xi_reconstruction[curr_i][j] /= degree_idx[curr_i]
-            else:
-                xi_reconstruction[curr_i][j] = 0
-            approx_error[curr_i] = approx_error[curr_i] + (data[curr_i][j] - xi_reconstruction[curr_i][j]) ** 2        
-        out[curr_i] = out[curr_i] + approx_error[curr_i]      
-        #cuda.atomic.add(out, curr_i, approx_error)
-    cuda.syncthreads()
+    #### Accumulate point degree
+    #idx = cuda.grid(1)
+    #stride = cuda.gridsize(1)
+   
+    x, y = cuda.grid(2)
+
+    total = 0.0
+    for i in range(row_len):
+        total += adj_matrix[x, i]
+        
+    degree_idx[x] = total 
     
+    #cuda.syncthreads()
+    
+    #### Approx error no nXn to hold the error for each combination of points
+    #### Accumulate errors here
+    
+    x, y = cuda.grid(2)
+
+    total = 0.0
+
+    for i in range(data.shape[1]):
+        total += adj_matrix[x, y] * data[y, i]
+
+    approx_error[x, y] = total
+
+    #### SUM ERRROS FOR EACH POINT
+    x, y = cuda.grid(2)
+
+    total = 0.0
+    
+    for i in range(row_len):
+        total += approx_error[i, y]
+    
+    if abs(degree_idx[x]) > 1e-20:
+        xi_reconstruction[x] = total / degree_idx[x]
+
+    
+    x, y = cuda.grid(2)
+
+    total = 0.0
+
+    for i in range(row_len):
+        total += data[] xi_reconstruction[x]   
+
+    
+
+    #cuda.syncthreads()
 
 @cuda.jit
-def sum_degree_idx(adj_matr, out):
-    idx = cuda.grid(1)
-    stride = cuda.gridsize(1)
+def edge_weight_computation(curr_sim_mtrx, data, gamma, pt_degrees, out):
+    
+    row_len = len(gamma)
+    
+    #### Need Similarity between all points
+    x, y = cuda.grid(2)        
+    
+    #### COLLECT  ALL DEGREES
+  
+    total = 0.0
+    
+    for i in range(row_len):
+        total += curr_sim_mtrx[i, y]
+    
+    pt_degrees[x] = total 
+    
+    #### CALC SIMILARITY MEASURE FOR ALL PAIRS OF POINTS
+    
+    x, y = cuda.grid(2)
+    
+    total = 0.0
+    
+    for i in range(row_len):
+        norm_term = sqrt(abs(pt_degrees[x] * pt_degrees[y]))
+        if abs(gamma[i]) > 1e-5 and abs(norm_term) > 1e-5:
+            total += (exp(-(((data[x, i] - data[y, i])**2) / gamma[i]))) / norm_term 
+            
+    out[x, y] = total
+    
+    '''
+    #@vectorize
+    def similarity_function(self, pt1_idx, pt2_idx, gamma):
+        
+        Compute similarity between two points using sparse matrix operations
+        
+        point1 = np.asarray(self.data.loc[[pt1_idx]])[0]
+        point2 = np.asarray(self.data.loc[[pt2_idx]])[0]
+        deg_pt1 = np.sum(self.similarity_matrix[pt1_idx, :])
+        deg_pt2 = np.sum(self.similarity_matrix[pt2_idx, :])
+        
+        # Compute squared difference and apply gamma
+        similarity_measure = np.sum(np.where(np.abs(gamma) > 1e-5, (((point1 - point2)**2) / (gamma**2)), 0))
+        similarity_measure = np.exp(-similarity_measure)
+        
+        degree_normalization_term = np.sqrt(np.abs(deg_pt1 * deg_pt2))
+        
+        if degree_normalization_term != 0 and not isclose(degree_normalization_term, 0, abs_tol=1e-100):
+            return similarity_measure / degree_normalization_term
+        else:
+            return 0
 
-    for i in range(idx, len(adj_matr[0]), stride):
-        curr_i = i + stride
-        for j in range(0, len(adj_matr[0])):
-            out[curr_i] = out[curr_i] + adj_matr[curr_i][j]
-    cuda.syncthreads()
+    def edge_weight_computation(self, section, gamma):
+    
+        #Compute edge weights for a section using sparse matrix operations
+        
+        res = []
+        for idx in section:
+            for vertex in range(self.data.shape[0]):
+                if vertex != idx:
+                    res.append((idx, vertex, self.similarity_function(idx, vertex, gamma)))
+        return res
+    '''    
+
