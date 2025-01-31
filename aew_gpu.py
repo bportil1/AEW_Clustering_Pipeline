@@ -25,10 +25,12 @@ class aew():
         self.labels = labels
         self.eigenvectors = None
         self.gamma = self.gamma_initializer(gamma_init)
-        self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
+        #self.similarity_matrix = self.correct_similarity_matrix_diag(similarity_matrix)
+        self.similarity_matrix = similarity_matrix #.toarray()
         self.threads = (16, 16)
         self.blocks = (len(self.similarity_matrix[0]) + self.threads[0] - 1) // self.threads[0], \
                       (len(self.similarity_matrix[0]) + self.threads[1] - 1) // self.threads[1]
+        print("Init sim matr: ", self.similarity_matrix)
 
     #@vectorize
     def correct_similarity_matrix_diag(self, similarity_matrix):
@@ -73,6 +75,8 @@ class aew():
         cuda.synchronize()
         error = out_d.copy_to_host()
         error = np.nan_to_num(error, nan=0, posinf=1e10, neginf=-1e10)
+        #print("Degree Matr: ", degree_d.copy_to_host())
+        #print("Error Sum: ", np.sum(error))
         return np.sum(error)
 
     def split(self, a, n):
@@ -119,8 +123,9 @@ class aew():
         Function to optimize gamma and set the resulting similarity matrix
         '''
         print("Generating Optimal Edge Weights")
-        self.similarity_matrix = self.generate_edge_weights(self.gamma)
+        #self.similarity_matrix = self.generate_edge_weights(self.gamma)
         self.optimize_gamma('simulated_annealing', num_iterations)
+        self.similarity_matrix = self.generate_edge_weights(self.gamma)
         #self.optimize_gamma('adam', num_iterations)
         #self.optimize_gamma('particle_swarm')
 
@@ -131,22 +136,27 @@ class aew():
         print("Generating Edge Weights")
         #print("Data Size: ", self.data.shape)
         #print("Graph Size: ", self.similarity_matrix.shape)
-        print("CURRENT DEGREES: ", np.sum(self.similarity_matrix[:, :]))
+        #print("CURRENT SIM  MATR : ", self.similarity_matrix)
+        #print("Current Gamma: ", gamma)
+        #print("current DATA: ", self.data)
         #curr_sim_matr = sp.lil_matrix(self.similarity_matrix.shape)
         curr_sim_matr = np.zeros_like(self.similarity_matrix)
-        print("New Sim Matr Size: ", curr_sim_matr.shape)
-        
         d_adj_matr = cuda.to_device(self.similarity_matrix)
         d_data = cuda.to_device(self.data)
         d_gamma = cuda.to_device(gamma)
-        d_pt_degrees = cuda.to_device(np.zeros_like(gamma))
+        d_pt_degrees = cuda.to_device(np.zeros_like(self.similarity_matrix[0]))
         d_sim_matr = cuda.to_device(curr_sim_matr)
-
+        cuda.synchronize()
         edge_weight_computation[self.blocks, self.threads](d_adj_matr, d_data, d_gamma, d_pt_degrees, d_sim_matr)
+            
+        #print("RETURNED FROM EWC")
         
+        cuda.synchronize()
         curr_sim_matr = d_sim_matr.copy_to_host()
+        #print("EWC MATRIX: ", curr_sim_matr)
         curr_sim_matr = self.subtract_identity(curr_sim_matr)
         curr_sim_matr = np.nan_to_num(curr_sim_matr, nan=0, posinf=1e10, neginf=-1e10)
+        print("FINISHED GENERATING EDGE WEIGHTS")
         return curr_sim_matr
         
     def subtract_identity(self, adj_matrix):
@@ -177,31 +187,27 @@ class aew():
             cum_variance = expl_var.cumsum()
             num_components = (cum_variance <= min_variance).sum() + 1
         pca = PCA(n_components=num_components)
-        pca_result = pca.fit_transform(self.similarity_matrix.toarray())
+        pca_result = pca.fit_transform(self.similarity_matrix) #.toarray())
         pca_normalized = self.unit_normalization(sp.csr_matrix(pca_result))
+        #pca_normalized = self.unit_normalization(pca_result)
         self.eigenvectors = pd.DataFrame(pca_normalized.toarray())
         print("Eigenvector Computation Complete")
 
 @cuda.jit
 def objective_computation(adj_matrix, data, gamma, degree_idx, approx_error, xi_reconstruction, out):
-    '''
-    Compute reconstruction error for a section, adjusted for sparse matrix usage
-    '''
     row_len = len(adj_matrix[0])
     x, y = cuda.grid(2)
     total = 0.0
     for i in range(row_len):
         total += adj_matrix[x, i]
-    print(total)
     degree_idx[x] = total 
     x, y = cuda.grid(2)
     total = 0.0
     for i in range(data.shape[1]):
         if abs(degree_idx[x]) > 1e-10:
-            total += (data[x, i] - ((adj_matrix[x, y] * data[y, i]) / degree_idx[x]))**2 
+            total += sqrt(abs(data[x, i] - ((adj_matrix[x, y] * data[y, i]) / degree_idx[x])**2))
         else:
-            total = 0
-    #print(total)
+            total += 0
     out[x] = total
 
 @cuda.jit
@@ -210,17 +216,26 @@ def edge_weight_computation(curr_sim_mtrx, data, gamma, pt_degrees, out):
     row_len = len(gamma)
     x, y = cuda.grid(2)        
     total = 0.0
-    for i in range(row_len):
-        total += curr_sim_mtrx[i, y]
+
+    for i in range(len(curr_sim_mtrx[0])):
+        total += curr_sim_mtrx[x, i]
+
     pt_degrees[x] = total 
+
     x, y = cuda.grid(2)
     total = 0.0
     for i in range(row_len):
-        norm_term = sqrt(abs(pt_degrees[x] * pt_degrees[y]))
-        if abs(gamma[i]) > 1e-5 and abs(norm_term) > 1e-10:
-            total += (exp(-(((data[x, i] - data[y, i])**2) / gamma[i]))) / norm_term   
+        if abs(gamma[i]) > 1e-5:
+            total += (exp(-(((data[x, i] - data[y, i])**2) / gamma[i]**2)))
+    
+    norm_term = sqrt(abs(pt_degrees[x] * pt_degrees[y]))
+    if abs(norm_term) > 1e-10:
+        total /= -norm_term   
+    else:
+        total = 0
+
     out[x, y] = total
-  
+
 @cuda.jit
 def gradient_computation(adj_matrix, data, gamma, pt_degrees, first_terms, second_terms, third_terms, out):    
     row_len = len(gamma)

@@ -83,7 +83,8 @@ class SimulatedAnnealingOptimizer:
         curr_gamma = self.gamma
         curr_energy = self.objective_function(self.similarity_matrix, self.gamma)
         curr_sim_matr = self.similarity_matrix
-        
+        print("Initial Error: ", curr_energy)
+
         for idx in range(self.num_iterations):
             new_position = self.solution_transition(curr_gamma)
             curr_adj_matr = self.generate_edge_weights(new_position)

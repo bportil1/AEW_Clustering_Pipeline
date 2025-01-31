@@ -46,7 +46,7 @@ def aew_test_driver():
 
             print("Stratified Section: ", strat_idx)
 
-            data_obj.generate_graphs(100, strat_idx, data_type='stratified')
+            data_obj.generate_graphs(100, strat_idx, mode='connectivity', data_type='stratified')
 
             aew_obj = aew(data_obj.graph, data_obj.stratified_data[strat_idx], data_obj.data, data_obj.stratified_labels[strat_idx], strat_idx, 'var')
 

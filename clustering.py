@@ -138,7 +138,7 @@ class clustering():
               'V_meas' : v_meas, 'FMs' : fowlkes_mallows}
         df = pd.DataFrame([d])
         self.fin_df = pd.concat([self.fin_df, df], ignore_index=True)
-        filename_base = '/' + alg + '/'  
+        filename_base = '/' + alg   
         for hyper_param in hyperparameters:
             filename_base += "_" + str(hyper_param) 
         cntg_mtx_name = ctg_matrices_path + filename_base + ".csv"
@@ -149,14 +149,14 @@ class clustering():
         f = open(results_file_name, 'a')
         f.close()
         df.to_csv(results_file_name, index=False)
-        vis_file_name = filename_base + "_eigen.html"
-        labels_pred = pd.DataFrame(labels_pred, columns=['defects'])
-        if isinstance(self.data, np.ndarray):
-            dims = self.data.shape[1]  
-        elif isinstance(self.data, pd.DataFrame):
-            dims = len(self.data.columns)
-        visualizer_obj = visualizer(labels=labels_pred, dims = dims)
-        visualizer_obj.lower_dimensional_embedding(self.data, vis_file_name, visualizations_path)
-        whole_data_name = filename_base + "_whole.html"
-        visualizer_obj.lower_dimensional_embedding(self.base_data, whole_data_name, visualizations_path)
+        #vis_file_name = filename_base + "_eigen.html"
+        #labels_pred = pd.DataFrame(labels_pred, columns=['defects'])
+        #if isinstance(self.data, np.ndarray):
+        #    dims = self.data.shape[1]  
+        #elif isinstance(self.data, pd.DataFrame):
+        #    dims = len(self.data.columns)
+        #visualizer_obj = visualizer(labels=labels_pred, dims = dims)
+        #visualizer_obj.lower_dimensional_embedding(self.data, vis_file_name, visualizations_path)
+        #whole_data_name = filename_base + "_whole.html"
+        #visualizer_obj.lower_dimensional_embedding(self.base_data, whole_data_name, visualizations_path)
 

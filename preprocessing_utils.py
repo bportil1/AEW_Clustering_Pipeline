@@ -148,10 +148,10 @@ class data:
                     graph_data[i, indices[i, j]] = 1
         else:
             raise ValueError("'distance' or 'connectivity' only")
-        graph = csr_matrix(graph_data)
+        #graph = csr_matrix(graph_data)
         #mm_file = './mmap_file'
         #graph = np.memmap(mm_file + 'knn_graph', dtype='float32', mode='w+', shape=graph.shape)
-        self.graph = graph
+        self.graph = graph_data
         #return graph
 
 class visualizer():
