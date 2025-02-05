@@ -3,6 +3,7 @@ from aew_gpu import *
 from preprocessing_utils import *
 from clustering import *
 from aew_surface_plotter import *
+from latlrr import *
 
 from sklearn.metrics import accuracy_score
 
@@ -16,7 +17,7 @@ def aew_test_driver():
     Function to run AEW clustering test
     '''
 
-    cm1_file = 'sq_ds/jm1.csv'
+    cm1_file = 'sq_ds/kc2.csv'
 
     #data_obj = data(cm1_file, graph_type='whole')
 
@@ -26,6 +27,33 @@ def aew_test_driver():
 
     data_obj.scale_data('min_max')
     
+    print("LatLRR Tests")
+
+    latlrr_obj = latLRR(data_obj.data.to_numpy())
+
+    latlrr_obj.inexact_alm()
+
+    print("Z")
+
+    print(latlrr_obj.Z)
+
+    print("J")
+
+    print(latlrr_obj.J)
+
+    print("S")
+
+    print(latlrr_obj.S)
+
+    print("L")
+
+    print(latlrr_obj.L)
+
+
+    print("LatLRR Tests Complete")
+
+
+    '''
     #data_obj.generate_graphs(100, data_type='whole')
 
     #print("Initial Sim Matr: ", data_obj.graph)
@@ -84,7 +112,7 @@ def aew_test_driver():
         clustering_obj.generate_kmeans()
 
         #clustering_obj.generate_gaussianmixture()
-        
+       ''' 
 if __name__ == '__main__':
     aew_test_driver()
         

@@ -17,7 +17,7 @@ class latLRR():
         self.rho = 1.1  # frob norm term  
         self.epsilon = 10e-6
     
-    def inexact_alm():
+    def inexact_alm(self):
         converged = False
         while not converged:
             self.update_J() 
@@ -30,9 +30,9 @@ class latLRR():
             self.update_y3()
             if self.convergence_check():
                 converged = True
+            print("Not Converged Continuing")
 
-        
-
+                
     def schatten_norm_1(self, matrix):
         singular_vals = np.linalg.svd(matrix, compute_ux = False)
         return np.sum(singular_vals)
@@ -52,7 +52,7 @@ class latLRR():
         self.J = self.sv_thresholding(A, tau)
 
     def update_S(self):
-        tau = self.mew / self.rho
+        tau = self.mu / self.rho
         A = self.L + (self.y3 / self.mu)
         self.S = self.sv_thresholding(A, tau)
         
