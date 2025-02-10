@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import sparse
 
 class latLRR():
     def __init__(self, matrix):
@@ -49,8 +50,39 @@ class latLRR():
         U, S, Vt = np.linalg.svd(matrix, full_matrices=False)
         tau = S[0] / self.rho
         print("Current Tau: ", tau)
+        print("S init: ", S)
+        print("S Length: ", len(S))
         S_thresholded = np.maximum(S - tau, 0)
+        print("S threshed: ", S_thresholded)
+        print("S Threshed Size: ", len(S_thresholded))
         return U @ np.diag(S_thresholded) @ Vt
+
+    def svt_optimization(self, matrix, max_iter, delta=1.2, l=5, tol=10e-4):
+        s_matrix = sparse.csr_matrix(matrix)
+        Y = np.zeros_like(matrix)
+        r = 0
+        tau = np.linalg.norm(matrix, "fro") * delta * 5
+        sv_count_condition = False
+        for k in range(1, max_iter):
+            s_k = r + 1
+            while (not sv_count_condition):
+                U, S, Vt = sparse.linalg.svds(k=s_k)
+                s_k = s_k + l
+                if S[s_k-l:k-1] <= tau:
+                    sv_count_condition = True
+            selected_sv = S[:r]
+            r = len(np.where(S > tau))
+            X = np.zeros_like(Y)
+            for idx in range(0,r):
+                sub_s = np.where(S > tau)
+                sub_s -= tau
+                sub_u = U[:r]
+                sub_v = Vt[:r]
+                X += sub_s @ sub_u @ sub_v  
+
+            if np.linalg.norm((X - matrix), 'fro') / np.linalg.norm((
+
+        return 0 
 
     def update_J(self):
         print("In update J")
