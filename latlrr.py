@@ -31,15 +31,15 @@ class latLRR():
             self.update_y2()
             self.update_y3()
             self.update_mu()
-            print("J: ", self.J)
-            print("S: ", self.S)
-            print("Z: ", self.Z)
-            print("L: ", self.L)
-            print("E: ", self.E)
-            print("Y1: ", self.y1)
-            print("Y2: ", self.y2)
-            print("Y3: ", self.y3)
-            print("MU: ", self.mu)
+            #print("J: ", self.J)
+            #print("S: ", self.S)
+            #print("Z: ", self.Z)
+            #print("L: ", self.L)
+            #print("E: ", self.E)
+            #print("Y1: ", self.y1)
+            #print("Y2: ", self.y2)
+            #print("Y3: ", self.y3)
+            #print("MU: ", self.mu)
 
             if self.convergence_check():
                 converged = True
@@ -61,14 +61,13 @@ class latLRR():
         for i, j in indices:
             proj_x[i, j] = matrix[i, j]
 
+    '''
     def svt_optimization(self, matrix, max_iter, delta=1.2, l=1, tol=10e-4):
         Y = np.zeros_like(matrix)
         r = 0
         opt_X = np.zeros_like(matrix)
         tau = np.average(np.linalg.svd(matrix, compute_uv=False))
-        #print("Tau: ", tau)
-        #print("Init Matrix: ", matrix)
-        #print("Init Rank:  ", np.linalg.matrix_rank(matrix))
+        
         for k in range(1, max_iter+1):
             s = r + 1
             if np.all(Y==0):
@@ -76,28 +75,42 @@ class latLRR():
                 continue
             while True:
                 U, S, Vt = np.linalg.svd(Y, full_matrices=False)
-                #print("U: ", U)
-                #print("S: ", S)
-                #print("Vt: ", Vt)
+                delta = (len(U[0]) * len(V[0])) / len(matrix[0])
 
                 if s - 1 < len(S) and S[s - l - 1]  <= tau:
                     break
-                s += 1
-            #print("Current S:  ", s)        
+               
+                s += l
+                    
             r = max(j for j in range(len(S)) if S[j] > tau)
+
             curr_X = sum((S[j] - tau) * np.outer(U[:, j], Vt[j, :]) for j in range(r))
 
-            #print("Current Convergence Condition: ", np.linalg.norm(curr_X - matrix, 'fro') /np.linalg.norm(matrix, 'fro'))
-
-            if np.linalg.norm(curr_X - matrix, 'fro') /np.linalg.norm(matrix, 'fro') <= tol:
+            if np.linalg.norm(curr_X - matrix, 'fro') /np.linalg.norm(matrix[:r], 'fro') <= tol:
                 opt_X = curr_X
                 break
 
             Y = Y + delta * (matrix - curr_X)
-        #print("Reduced Matrix: ", opt_X)
-        #print("Reduced Matrix: ", opt_X.shape)
-        #print("Reduced Matrix Rank: ", np.linalg.matrix_rank(opt_X))
+            
         return opt_X 
+    '''
+
+    def svt_optimization(self, matrix):
+        U, S, Vt = np.linalg.svd(matrix, full_matrices=False)
+        print("U shape: ", U.shape)
+        print("S shape: ", S.shape)
+        print("Vt shape: ", Vt.shape)
+        n1 = len(U[0]) 
+        n2 = len(Vt[0])
+        m = len(matrix[0])
+        delta = ((n1 * n2) / m) * 1.2
+        tau = delta * np.linalg.norm(((m*matrix)/(n1*n2)), 'fro' ) 
+        print("Current Tau: ", tau)
+        S_thresholded = np.maximum(S - tau, 0)
+        print("S_thresholded: ", S_thresholded.shape)
+        m, n
+        S_full = np.zeros()
+        return U @ S_thresholded @ Vt
 
     ######## check multiplication here #########
     def soft_thresholding(self, matrix, tau):
@@ -118,17 +131,20 @@ class latLRR():
 
     def update_J(self):
         print("In update J")
+        print("ORIG J: ", self.J)
         A = self.J - (self.Z + (self.y2 / self.mu))
+        print("A: ", A)
         if (A.all() != 0):
-            self.J = self.svt_optimization(A, 1000)
-        #else: 
-        #    self.J = A
+            self.J = self.svt_optimization(A)
+            print("THRESHOLDED J: ", self.J)
+        else: 
+            self.J = A
 
     def update_S(self):
         print("In update S")
         A = self.S - (self.L + (self.y3 / self.mu))
         if (A.all() != 0):
-            self.S = self.svt_optimization(A, 1000)
+            self.S = self.svt_optimization(A)
         #else: 
         #    self.S = A
 
@@ -183,7 +199,7 @@ class latLRR():
 
         A = self.E - ((self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix) + self.y1) / self.mu)
         
-        print("A: ", A)
+        #print("A: ", A)
 
         if (A.all() != 0):
             self.E = self.pg_optimization(A, 1000)
