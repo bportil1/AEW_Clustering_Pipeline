@@ -14,7 +14,7 @@ class latLRR():
         self.y1 = np.zeros_like(self.matrix)
         self.y2 = np.zeros_like(self.Z)
         self.y3 = np.zeros_like(self.L)
-        self.mu = 10e-6 # reg term
+        self.mu = 10e-4 # reg term
         self.max_u = 10e6
         self.rho = 1.1  # frob norm term  
         self.epsilon = 10e-6
@@ -53,8 +53,9 @@ class latLRR():
         return np.sum(singular_vals)
 
     def schatten_norm_inf(self, matrix):
-        singular_vals = np.linalg.svd(matrix, compute_uv = False)
-        return np.max(singular_vals)
+        #singular_vals = np.linalg.svd(matrix, compute_uv = False)
+        #return np.max(singular_vals)
+        return np.max(np.abs(matrix))
 
     def orth_projection(self, matrix, indices):
         proj_x = np.zeros_like(matrix)
@@ -97,20 +98,24 @@ class latLRR():
 
     def svt_optimization(self, matrix):
         U, S, Vt = np.linalg.svd(matrix, full_matrices=False)
-        print("U shape: ", U.shape)
-        print("S shape: ", S.shape)
-        print("Vt shape: ", Vt.shape)
+        print("U shape: ", U)
+        #print("S shape: ", S)
+        print("Vt shape: ", Vt)
         n1 = len(U[0]) 
         n2 = len(Vt[0])
         m = len(matrix[0])
         delta = ((n1 * n2) / m) * 1.2
-        tau = delta * np.linalg.norm(((m*matrix)/(n1*n2)), 'fro' ) 
-        print("Current Tau: ", tau)
+        #tau = delta * np.linalg.norm(((m*matrix)/(n1*n2)), 'fro' ) 
+        tau = np.average(S)
+        #print("Current Tau: ", tau)
         S_thresholded = np.maximum(S - tau, 0)
-        print("S_thresholded: ", S_thresholded.shape)
-        m, n
-        S_full = np.zeros()
-        return U @ S_thresholded @ Vt
+        #print("S_thresholded: ", S_thresholded)
+        m, n = matrix.shape
+        S_full = np.zeros((m,n))
+        np.fill_diagonal(S_full, S_thresholded[:min(m, n)])
+        #print("S_Full: ", S_full.shape)
+        #print("S_Full: ", S_full)
+        return U @ S_full @ Vt
 
     ######## check multiplication here #########
     def soft_thresholding(self, matrix, tau):
@@ -131,19 +136,21 @@ class latLRR():
 
     def update_J(self):
         print("In update J")
-        print("ORIG J: ", self.J)
-        A = self.J - (self.Z + (self.y2 / self.mu))
-        print("A: ", A)
-        if (A.all() != 0):
+        #print("ORIG J: ", self.J)
+        #A = self.J - (self.Z + (self.y2 / self.mu))
+        #print("A: ", A)
+        if (self.J.all() != 0):
+            A = (self.Z + (self.y2 / self.mu))
             self.J = self.svt_optimization(A)
-            print("THRESHOLDED J: ", self.J)
-        else: 
-            self.J = A
+            #print("THRESHOLDED J: ", self.J)
+        #else: 
+        #    self.J = A
 
     def update_S(self):
         print("In update S")
-        A = self.S - (self.L + (self.y3 / self.mu))
-        if (A.all() != 0):
+        #A = self.S - (self.L + (self.y3 / self.mu))
+        if (self.S.all() != 0):
+            A = (self.L + (self.y3 / self.mu))
             self.S = self.svt_optimization(A)
         #else: 
         #    self.S = A
@@ -182,8 +189,8 @@ class latLRR():
     def update_E(self):
         print("In update E")
 
-        #print("J: ", self.J)
-        #print("S: ", self.S)
+        print("J: ", self.J)
+        print("S: ", self.S)
         #print("Z: ", self.Z)
         #print("L: ", self.L)
         #print("E: ", self.E)
@@ -192,17 +199,22 @@ class latLRR():
         #print("Y3: ", self.y3)
         #print("MU: ", self.mu)
 
-        print("first matmul: ", np.matmul(self.matrix, self.Z) )
-        print("second matmul: ", np.matmul(self.L, self.matrix)) 
+        #print("first matmul: ", np.matmul(self.matrix, self.Z) )
+        #print("second matmul: ", np.matmul(self.L, self.matrix)) 
 
-        print("matrix: ", self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix))
+        print("E computation: ", (self.E - (self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix))))
 
         A = self.E - ((self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix) + self.y1) / self.mu)
-        
-        #print("A: ", A)
+        #A = self.E - ((self.matrix - np.matmul(self.matrix, self.Z) - self.L + self.y1) / self.mu)
+
+
+        print("A: ", A)
 
         if (A.all() != 0):
-            self.E = self.pg_optimization(A, 1000)
+            #self.E = self.pg_optimization(A, 1000)
+            tau = np.average(A)
+            self.E = self.soft_thresholding(A, tau)
+
         else:
             self.E = A
         #sigma_max = np.linalg.svd(term_1, compute_uv=False)[0]
@@ -220,7 +232,7 @@ class latLRR():
         self.y3 += self.mu * (self.L - self.S)
 
     def update_mu(self):
-        self.mu = np.minimum((self.rho*self.mu), self.max_u)
+        self.mu = np.minimum((self.mu*self.rho), self.max_u)
         #print("New Mu: ", self.mu)
 
     def convergence_check(self):
