@@ -14,8 +14,8 @@ class latLRR():
         self.y1 = np.zeros_like(self.matrix)
         self.y2 = np.zeros_like(self.Z)
         self.y3 = np.zeros_like(self.L)
-        self.mu = 10e-4 # reg term
-        self.max_u = 10e6
+        self.mu = 1e-6 # reg term
+        self.max_u = 1e6
         self.rho = 1.1  # frob norm term  
         self.epsilon = 10e-6
     
@@ -138,13 +138,13 @@ class latLRR():
         print("In update J")
         #print("ORIG J: ", self.J)
         #A = self.J - (self.Z + (self.y2 / self.mu))
-        #print("A: ", A)
+        print("Test in J: ", self.J.all())
         if (self.J.all() != 0):
             A = (self.Z + (self.y2 / self.mu))
             self.J = self.svt_optimization(A)
             #print("THRESHOLDED J: ", self.J)
-        #else: 
-        #    self.J = A
+        else: 
+            self.J = (self.Z + (self.y2 / self.mu))
 
     def update_S(self):
         print("In update S")
@@ -152,8 +152,8 @@ class latLRR():
         if (self.S.all() != 0):
             A = (self.L + (self.y3 / self.mu))
             self.S = self.svt_optimization(A)
-        #else: 
-        #    self.S = A
+        else: 
+            self.S = (self.L + (self.y3 / self.mu))
 
     def update_Z(self):
         #term_1 = np.linalg.inv(self.identity_row + np.dot(self.matrix.T, self.matrix))
@@ -202,9 +202,9 @@ class latLRR():
         #print("first matmul: ", np.matmul(self.matrix, self.Z) )
         #print("second matmul: ", np.matmul(self.L, self.matrix)) 
 
-        print("E computation: ", (self.E - (self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix))))
+        print("E computation: ", ((self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix))))
 
-        A = self.E - ((self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix) + self.y1) / self.mu)
+        A = self.matrix - np.matmul(self.matrix, self.Z) - np.matmul(self.L, self.matrix) + self.y1 / self.mu
         #A = self.E - ((self.matrix - np.matmul(self.matrix, self.Z) - self.L + self.y1) / self.mu)
 
 
