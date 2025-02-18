@@ -37,11 +37,11 @@ def aew_test_driver():
 
     print(latlrr_obj.Z)
 
-    print("J")
+    #print("J")
 
     print(latlrr_obj.J)
 
-    print("S")
+    #print("S")
 
     print(latlrr_obj.S)
 
