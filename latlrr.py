@@ -1,13 +1,15 @@
 import numpy as np
 from scipy import sparse
 
+### Z and L sizes were backwards so computations are off 
+
 class latLRR():
     def __init__(self, matrix):
         self.matrix = matrix
-        self.Z = np.zeros((len(matrix[0]), len(matrix[0])))
-        self.J = np.zeros((len(matrix[0]), len(matrix[0])))
-        self.L = np.zeros((len(matrix), len(matrix)))
-        self.S = np.zeros((len(matrix), len(matrix)))
+        self.L = np.zeros((len(matrix[0]), len(matrix[0])))
+        self.S = np.zeros((len(matrix[0]), len(matrix[0])))
+        self.Z = np.zeros((len(matrix), len(matrix)))
+        self.J = np.zeros((len(matrix), len(matrix)))
         self.E = np.zeros_like(self.matrix)
         self.identity_row = np.eye(len(self.matrix[0]))
         self.identity_col = np.eye(len(self.matrix))
